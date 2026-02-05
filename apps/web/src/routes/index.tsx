@@ -21,6 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const RECENT_STORAGE_KEY = "zathura.recent";
+const STATUS_BAR_STORAGE_KEY = "zathura.statusBarVisible";
 const DOC_STORAGE_PREFIX = "zathura.doc.";
 const RECENT_DOC_LIMIT = 10;
 const SCROLL_STEP_PX = 40;
@@ -131,7 +132,10 @@ function HomeComponent() {
   const [activeTheme, setActiveTheme] = useState(() => getStoredTheme() ?? DEFAULT_THEME);
   const [activeDocUrl, setActiveDocUrl] = useState<string | null>(null);
   const [activeDocDisplay, setActiveDocDisplay] = useState<string | null>(null);
-  const [statusBarVisible, setStatusBarVisible] = useState(true);
+  const [statusBarVisible, setStatusBarVisible] = useState(() => {
+    const stored = readStoredJson<boolean>(STATUS_BAR_STORAGE_KEY);
+    return stored ?? true;
+  });
   const [currentPage, setCurrentPage] = useState<number | null>(null);
   const [totalPages, setTotalPages] = useState(0);
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>([]);
@@ -401,6 +405,10 @@ function HomeComponent() {
 
     writeThemeCookie(activeTheme);
   }, [activeTheme]);
+
+  useEffect(() => {
+    writeStoredJson(STATUS_BAR_STORAGE_KEY, statusBarVisible);
+  }, [statusBarVisible]);
 
   useEffect(() => {
     setRecentDocs(loadRecentDocs());
