@@ -7,55 +7,21 @@ import { toast } from "sonner";
 import Loader from "@/components/loader";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  DEFAULT_THEME,
+  THEMES,
+  THEME_STORAGE_KEY,
+  getStoredTheme,
+  normalizeThemeInput,
+  resolveTheme,
+  writeThemeCookie,
+  type ThemeId,
+} from "@/lib/theme";
 
-const DEFAULT_THEME = "tokyonight-night";
-const THEME_STORAGE_KEY = "zathura.theme";
 const RECENT_STORAGE_KEY = "zathura.recent";
 const DOC_STORAGE_PREFIX = "zathura.doc.";
 const RECENT_DOC_LIMIT = 10;
 const SCROLL_STEP_PX = 40;
-const THEMES = [
-  { id: "tokyonight-night", label: "Tokyo Night" },
-  { id: "catppuccin", label: "Catppuccin" },
-  { id: "catppuccin-latte", label: "Catppuccin Latte" },
-  { id: "ethereal", label: "Ethereal" },
-  { id: "everforest", label: "Everforest" },
-  { id: "flexoki-light", label: "Flexoki Light" },
-  { id: "gruvbox", label: "Gruvbox" },
-  { id: "hackerman", label: "Hackerman" },
-  { id: "kanagawa", label: "Kanagawa" },
-  { id: "matte-black", label: "Matte Black" },
-  { id: "miasma", label: "Miasma" },
-  { id: "nord", label: "Nord" },
-  { id: "osaka-jade", label: "Osaka Jade" },
-  { id: "ristretto", label: "Ristretto" },
-  { id: "rose-pine", label: "Rose Pine" },
-];
-const THEME_IDS = new Set(THEMES.map((theme) => theme.id));
-const THEME_ALIASES: Record<string, string> = {
-  "tokyo-night": "tokyonight-night",
-  tokyonight: "tokyonight-night",
-};
-
-const normalizeThemeInput = (value: string) =>
-  value.trim().toLowerCase().replace(/_/g, "-").replace(/\s+/g, "-");
-
-const resolveTheme = (value: string) => {
-  const normalized = normalizeThemeInput(value);
-  if (!normalized) {
-    return null;
-  }
-  const resolved = THEME_ALIASES[normalized] ?? normalized;
-  return THEME_IDS.has(resolved) ? resolved : null;
-};
-
-const getStoredTheme = () => {
-  if (typeof window === "undefined") {
-    return null;
-  }
-  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-  return stored ? resolveTheme(stored) : null;
-};
 
 type TocItem = {
   title: string;
@@ -393,7 +359,14 @@ function HomeComponent() {
     if (typeof window === "undefined") {
       return;
     }
-    window.localStorage.setItem(THEME_STORAGE_KEY, activeTheme);
+
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, activeTheme);
+    } catch {
+      // Ignore storage failures.
+    }
+
+    writeThemeCookie(activeTheme);
   }, [activeTheme]);
 
   useEffect(() => {
@@ -1597,13 +1570,13 @@ function HomeComponent() {
     });
   }, [showRecentSuggestions, recentHighlightIndex]);
 
-  const previewTheme = (themeId: string) => {
+  const previewTheme = (themeId: ThemeId) => {
     if (themeId !== activeTheme) {
       setActiveTheme(themeId);
     }
   };
 
-  const commitTheme = (themeId: string) => {
+  const commitTheme = (themeId: ThemeId) => {
     setActiveTheme(themeId);
     setCommandOpen(false);
   };
