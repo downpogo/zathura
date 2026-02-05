@@ -9,6 +9,7 @@ import {
 } from "@diceui/mention";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import Loader from "@/components/loader";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const DEFAULT_THEME = "tokyonight-night";
 const PDF_WORKER_SRC = new URL(
@@ -518,33 +519,47 @@ function HomeComponent() {
     scrollContainer.scrollTop = target.offsetTop;
   };
 
-  const renderTocItems = (items: TocItem[], depth = 0) => (
-    <ul className="space-y-0.5">
-      {items.map((item, index) => {
-        const isInteractive = item.page !== null;
-        return (
-          <li key={`${depth}-${index}-${item.title}`}>
-            <button
-              type="button"
-              disabled={!isInteractive}
-              onClick={() =>
-                item.page !== null ? scrollToPage(item.page) : undefined
-              }
-              className={`w-full text-left text-xs transition-colors ${
-                isInteractive
-                  ? "text-foreground hover:text-primary"
-                  : "cursor-default text-muted-foreground"
-              }`}
-              style={{ paddingLeft: depth * 12 }}
-            >
-              {item.title}
-            </button>
-            {item.items.length > 0 ? renderTocItems(item.items, depth + 1) : null}
-          </li>
-        );
-      })}
-    </ul>
-  );
+  const renderTocItems = (items: TocItem[], depth = 0) => {
+    const listClassName = `${depth === 0 ? "space-y-3" : "space-y-1"} ${
+      depth > 0 ? "pl-4" : ""
+    }`;
+
+    return (
+      <ul className={listClassName}>
+        {items.map((item, index) => {
+          const isInteractive = item.page !== null;
+          const toneByDepth =
+            depth === 0
+              ? "text-sm font-semibold text-primary"
+              : depth === 1
+                ? "text-xs font-medium text-foreground"
+                : "text-xs text-muted-foreground";
+
+          return (
+            <li key={`${depth}-${index}-${item.title}`}>
+              <button
+                type="button"
+                disabled={!isInteractive}
+                onClick={() =>
+                  item.page !== null ? scrollToPage(item.page) : undefined
+                }
+                className={`w-full text-left leading-5 transition-colors hover:bg-accent/40 ${toneByDepth} ${
+                  isInteractive
+                    ? "hover:text-primary"
+                    : "cursor-default text-muted-foreground"
+                }`}
+              >
+                {item.title}
+              </button>
+              {item.items.length > 0
+                ? renderTocItems(item.items, depth + 1)
+                : null}
+            </li>
+          );
+        })}
+      </ul>
+    );
+  };
 
   useEffect(() => {
     if (!commandOpen) {
@@ -659,31 +674,39 @@ function HomeComponent() {
             {tocOpen ? (
               <aside
                 aria-label="Table of contents"
-                className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-card"
+                className="flex h-full w-72 shrink-0 flex-col border-r border-border bg-card"
               >
                 <div className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
                   Contents
                 </div>
-                <div className="flex-1 overflow-auto px-3 py-2">
-                  {tocLoading ? (
-                    <div className="text-xs text-muted-foreground">
-                      Loading...
-                    </div>
-                  ) : tocItems.length > 0 ? (
-                    renderTocItems(tocItems)
-                  ) : (
-                    <div className="text-xs text-muted-foreground">
-                      No table of contents.
-                    </div>
-                  )}
-                </div>
+                <ScrollArea
+                  className="flex-1"
+                  type="scroll"
+                  scrollHideDelay={600}
+                >
+                  <div className="px-3 py-2">
+                    {tocLoading ? (
+                      <div className="text-xs text-muted-foreground">
+                        Loading...
+                      </div>
+                    ) : tocItems.length > 0 ? (
+                      renderTocItems(tocItems)
+                    ) : (
+                      <div className="text-xs text-muted-foreground">
+                        No table of contents.
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
               </aside>
             ) : null}
-            <div
-              ref={scrollRef}
-              className="relative flex-1 overflow-auto"
+            <ScrollArea
+              className="relative flex-1"
+              type="scroll"
+              scrollHideDelay={600}
+              viewportRef={scrollRef}
             >
-              <div className="min-h-screen w-full">
+              <div className="relative min-h-screen w-full">
                 <div
                   ref={viewerRef}
                   className="pdf-viewer flex w-full flex-col items-start"
@@ -701,7 +724,7 @@ function HomeComponent() {
                   </div>
                 ) : null}
               </div>
-            </div>
+            </ScrollArea>
           </div>
         </div>
       ) : null}
