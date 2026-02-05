@@ -10,6 +10,7 @@ import {
 import { useHotkeys } from "react-hotkeys-hook";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import Loader from "@/components/loader";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const DEFAULT_THEME = "tokyonight-night";
@@ -530,7 +531,7 @@ function HomeComponent() {
   };
 
   const renderTocItems = (items: TocItem[], depth = 0) => {
-    const listClassName = `${depth === 0 ? "space-y-3" : "space-y-1"} ${depth > 0 ? "pl-4" : ""}`;
+    const listClassName = `${depth === 0 ? "space-y-5" : "space-y-1"} ${depth > 0 ? "pl-4" : ""}`;
 
     return (
       <ul className={listClassName}>
@@ -538,18 +539,20 @@ function HomeComponent() {
           const isInteractive = item.page !== null;
           const toneByDepth =
             depth === 0
-              ? "text-sm font-semibold text-primary"
+              ? "font-semibold text-primary"
               : depth === 1
-                ? "text-xs font-medium text-foreground"
-                : "text-xs text-muted-foreground";
+                ? "font-medium text-foreground"
+                : "text-muted-foreground";
+          const itemPadding = depth === 0 ? "py-1.5" : "py-0.5";
+          const itemSpacing = depth === 0 ? "pb-3 last:pb-0" : "";
 
           return (
-            <li key={`${depth}-${index}-${item.title}`}>
+            <li key={`${depth}-${index}-${item.title}`} className={itemSpacing}>
               <button
                 type="button"
                 disabled={!isInteractive}
                 onClick={() => (item.page !== null ? scrollToPage(item.page) : undefined)}
-                className={`w-full text-left leading-5 transition-colors hover:bg-accent/40 ${toneByDepth} ${
+                className={`w-full text-left leading-5 transition-colors hover:bg-accent/40 ${toneByDepth} ${itemPadding} ${
                   isInteractive ? "hover:text-primary" : "cursor-default text-muted-foreground"
                 }`}
               >
@@ -729,17 +732,17 @@ function HomeComponent() {
                 aria-label="Table of contents"
                 className="flex h-full w-72 shrink-0 flex-col border-r border-border bg-card"
               >
-                <div className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
+                <div className="border-b border-border px-3 py-2 font-medium text-muted-foreground">
                   Contents
                 </div>
                 <ScrollArea className="flex-1" type="scroll" scrollHideDelay={600}>
                   <div className="px-3 py-2">
                     {tocLoading ? (
-                      <div className="text-xs text-muted-foreground">Loading...</div>
+                      <div className="text-muted-foreground">Loading...</div>
                     ) : tocItems.length > 0 ? (
                       renderTocItems(tocItems)
                     ) : (
-                      <div className="text-xs text-muted-foreground">No table of contents.</div>
+                      <div className="text-muted-foreground">No table of contents.</div>
                     )}
                   </div>
                 </ScrollArea>
@@ -765,7 +768,53 @@ function HomeComponent() {
             </ScrollArea>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <div className="flex min-h-screen items-center justify-center px-6">
+          <div className="w-full max-w-lg border border-border bg-card/80 px-5 py-4 text-base text-foreground backdrop-blur">
+            <div className="flex items-center justify-between border-b border-border pb-2 font-mono uppercase tracking-[0.2em] text-muted-foreground">
+              <span>zathura://home</span>
+              <span className="text-primary">ready</span>
+            </div>
+            <div className="mt-3 space-y-1 font-mono">
+              <div className="font-semibold text-primary">ZATHURA</div>
+              <div className="text-muted-foreground">No document loaded.</div>
+            </div>
+            <div className="mt-4 space-y-2 font-mono">
+              <div className="flex items-center gap-2">
+                <span className="text-primary">:</span>
+                <span>
+                  open <span className="text-muted-foreground">&lt;url&gt;</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-primary">o</span>
+                <span className="text-muted-foreground">open file picker</span>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Open document
+              </Button>
+              <div className="flex items-center gap-2 font-mono text-muted-foreground">
+                <span
+                  className="inline-block h-3 w-2 animate-pulse bg-primary"
+                  aria-hidden="true"
+                />
+                <span>waiting for input</span>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-between border-t border-border pt-2 font-mono uppercase tracking-[0.2em] text-muted-foreground">
+              <span>-- idle --</span>
+              <span>session:none</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {commandOpen ? (
         <div className="fixed inset-x-0 bottom-0 z-50 px-4 pb-6">
