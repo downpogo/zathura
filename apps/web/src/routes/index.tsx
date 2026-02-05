@@ -105,6 +105,9 @@ function HomeComponent() {
   const [tocOpen, setTocOpen] = useState(false);
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
   const [tocLoading, setTocLoading] = useState(false);
+  const [tocExpandedPaths, setTocExpandedPaths] = useState<Set<string>>(() => new Set());
+  const [tocActivePath, setTocActivePath] = useState<string | null>(null);
+  const [tocFoldMode, setTocFoldMode] = useState<0 | 1 | 2>(0);
   const [zoomLevel, setZoomLevel] = useState(0.6);
   const [themeHighlightIndex, setThemeHighlightIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -116,8 +119,10 @@ function HomeComponent() {
   const lastDocUrlRef = useRef<string | null>(null);
   const lastThemeRef = useRef<string | null>(null);
   const themeListRef = useRef<HTMLDivElement | null>(null);
+  const tocListRef = useRef<HTMLDivElement | null>(null);
   const themeItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const lastThemeInteractionRef = useRef<"keyboard" | "mouse" | null>(null);
+  const tocGPressTimeoutRef = useRef<number | null>(null);
 
   const commandDefinitions = useMemo(
     () => [
@@ -189,6 +194,21 @@ function HomeComponent() {
       fileObjectUrlRef.current = null;
     }
   }, [activeDocUrl]);
+
+  useEffect(() => {
+    setTocExpandedPaths(new Set());
+    setTocActivePath(null);
+    setTocFoldMode(0);
+  }, [activeDocUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (tocGPressTimeoutRef.current) {
+        window.clearTimeout(tocGPressTimeoutRef.current);
+        tocGPressTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!activeDocUrl) {
@@ -614,13 +634,128 @@ function HomeComponent() {
     scrollContainer.scrollTop = target.offsetTop;
   };
 
-  const renderTocItems = (items: TocItem[], depth = 0) => {
+  type TocEntry = {
+    item: TocItem;
+    path: string;
+    depth: number;
+    parentPath: string | null;
+    hasChildren: boolean;
+  };
+
+  const tocIndex = useMemo(() => {
+    const allEntries: TocEntry[] = [];
+    const entryByPath = new Map<string, TocEntry>();
+    const parentByPath = new Map<string, string | null>();
+    const firstChildByPath = new Map<string, string | null>();
+    const allExpandablePaths: string[] = [];
+    const topLevelExpandablePaths: string[] = [];
+
+    const walkAll = (items: TocItem[], parentPath: string | null, depth: number) => {
+      items.forEach((item, index) => {
+        const path = parentPath ? `${parentPath}.${index}` : `${index}`;
+        const hasChildren = item.items.length > 0;
+        const entry: TocEntry = {
+          item,
+          path,
+          depth,
+          parentPath,
+          hasChildren,
+        };
+        allEntries.push(entry);
+        entryByPath.set(path, entry);
+        parentByPath.set(path, parentPath);
+        if (hasChildren) {
+          allExpandablePaths.push(path);
+          if (depth === 0) {
+            topLevelExpandablePaths.push(path);
+          }
+        }
+        if (parentPath && !firstChildByPath.has(parentPath)) {
+          firstChildByPath.set(parentPath, path);
+        }
+        if (hasChildren) {
+          walkAll(item.items, path, depth + 1);
+        }
+      });
+    };
+
+    const visibleEntries: TocEntry[] = [];
+    const walkVisible = (
+      items: TocItem[],
+      parentPath: string | null,
+      depth: number,
+      isVisible: boolean,
+    ) => {
+      items.forEach((item, index) => {
+        const path = parentPath ? `${parentPath}.${index}` : `${index}`;
+        if (isVisible) {
+          const entry = entryByPath.get(path);
+          if (entry) {
+            visibleEntries.push(entry);
+          }
+        }
+        const showChildren = isVisible && tocExpandedPaths.has(path);
+        if (item.items.length > 0) {
+          walkVisible(item.items, path, depth + 1, showChildren);
+        }
+      });
+    };
+
+    walkAll(tocItems, null, 0);
+    walkVisible(tocItems, null, 0, true);
+
+    return {
+      visibleEntries,
+      entryByPath,
+      parentByPath,
+      firstChildByPath,
+      allExpandablePaths,
+      topLevelExpandablePaths,
+    };
+  }, [tocItems, tocExpandedPaths]);
+
+  useEffect(() => {
+    if (!tocOpen) {
+      return;
+    }
+    if (tocIndex.visibleEntries.length === 0) {
+      setTocActivePath(null);
+      return;
+    }
+    const isVisible = tocIndex.visibleEntries.some((entry) => entry.path === tocActivePath);
+    if (!isVisible) {
+      setTocActivePath(tocIndex.visibleEntries[0].path);
+    }
+  }, [tocOpen, tocIndex.visibleEntries, tocActivePath]);
+
+  useEffect(() => {
+    if (!tocOpen || !tocActivePath) {
+      return;
+    }
+    const list = tocListRef.current;
+    if (!list) {
+      return;
+    }
+    const target = list.querySelector(
+      `[data-toc-path="${tocActivePath}"]`,
+    ) as HTMLElement | null;
+    if (target) {
+      target.scrollIntoView({ block: "nearest" });
+    }
+  }, [tocOpen, tocActivePath, tocExpandedPaths]);
+
+  const renderTocItems = (items: TocItem[], depth = 0, parentPath: string | null = null) => {
     const listClassName = `${depth === 0 ? "space-y-5" : "space-y-1"} ${depth > 0 ? "pl-4" : ""}`;
 
     return (
       <ul className={listClassName}>
         {items.map((item, index) => {
+          const path = parentPath ? `${parentPath}.${index}` : `${index}`;
           const isInteractive = item.page !== null;
+          const isExpanded = tocExpandedPaths.has(path);
+          const hasChildren = item.items.length > 0;
+          const isSelected = tocActivePath === path;
+          const indicator = hasChildren ? (isExpanded ? "-" : "+") : "";
           const toneByDepth =
             depth === 0
               ? "font-semibold text-primary"
@@ -635,14 +770,27 @@ function HomeComponent() {
               <button
                 type="button"
                 disabled={!isInteractive}
-                onClick={() => (item.page !== null ? scrollToPage(item.page) : undefined)}
-                className={`w-full text-left leading-5 transition-colors hover:bg-accent/40 ${toneByDepth} ${itemPadding} ${
+                data-toc-path={path}
+                data-selected={isSelected}
+                onClick={() => {
+                  setTocActivePath(path);
+                  if (item.page !== null) {
+                    scrollToPage(item.page);
+                  }
+                }}
+                className={`flex w-full items-start gap-2 text-left leading-5 transition-colors hover:bg-accent/40 data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground ${toneByDepth} ${itemPadding} ${
                   isInteractive ? "hover:text-primary" : "cursor-default text-muted-foreground"
                 }`}
               >
-                {item.title}
+                <span
+                  aria-hidden="true"
+                  className="inline-flex h-5 w-4 shrink-0 items-center justify-center text-muted-foreground"
+                >
+                  {indicator}
+                </span>
+                <span className="min-w-0 flex-1">{item.title}</span>
               </button>
-              {item.items.length > 0 ? renderTocItems(item.items, depth + 1) : null}
+              {hasChildren && isExpanded ? renderTocItems(item.items, depth + 1, path) : null}
             </li>
           );
         })}
@@ -720,6 +868,8 @@ function HomeComponent() {
   );
 
   const viewerHotkeysEnabled = Boolean(activeDocUrl) && !commandOpen;
+  const viewerScrollHotkeysEnabled = viewerHotkeysEnabled && !tocOpen;
+  const tocHotkeysEnabled = Boolean(activeDocUrl) && tocOpen && !commandOpen;
 
   const scrollByOffset = (deltaTop: number, deltaLeft: number) => {
     const scrollContainer = scrollRef.current;
@@ -787,10 +937,10 @@ function HomeComponent() {
       scrollByOffset(SCROLL_STEP_PX, 0);
     },
     {
-      enabled: viewerHotkeysEnabled,
+      enabled: viewerScrollHotkeysEnabled,
       preventDefault: true,
     },
-    [viewerHotkeysEnabled],
+    [viewerScrollHotkeysEnabled],
   );
 
   useHotkeys(
@@ -799,10 +949,10 @@ function HomeComponent() {
       scrollByOffset(-SCROLL_STEP_PX, 0);
     },
     {
-      enabled: viewerHotkeysEnabled,
+      enabled: viewerScrollHotkeysEnabled,
       preventDefault: true,
     },
-    [viewerHotkeysEnabled],
+    [viewerScrollHotkeysEnabled],
   );
 
   useHotkeys(
@@ -811,10 +961,10 @@ function HomeComponent() {
       scrollByHalfPage(1);
     },
     {
-      enabled: viewerHotkeysEnabled,
+      enabled: viewerScrollHotkeysEnabled,
       preventDefault: true,
     },
-    [viewerHotkeysEnabled],
+    [viewerScrollHotkeysEnabled],
   );
 
   useHotkeys(
@@ -823,10 +973,187 @@ function HomeComponent() {
       scrollByHalfPage(-1);
     },
     {
-      enabled: viewerHotkeysEnabled,
+      enabled: viewerScrollHotkeysEnabled,
       preventDefault: true,
     },
-    [viewerHotkeysEnabled],
+    [viewerScrollHotkeysEnabled],
+  );
+
+  useHotkeys(
+    "j",
+    () => {
+      if (tocIndex.visibleEntries.length === 0) {
+        return;
+      }
+      const currentIndex = tocIndex.visibleEntries.findIndex(
+        (entry) => entry.path === tocActivePath,
+      );
+      const nextIndex =
+        currentIndex === -1
+          ? 0
+          : (currentIndex + 1) % tocIndex.visibleEntries.length;
+      setTocActivePath(tocIndex.visibleEntries[nextIndex]?.path ?? null);
+    },
+    {
+      enabled: tocHotkeysEnabled,
+      preventDefault: true,
+    },
+    [tocHotkeysEnabled, tocIndex.visibleEntries, tocActivePath],
+  );
+
+  useHotkeys(
+    "k",
+    () => {
+      if (tocIndex.visibleEntries.length === 0) {
+        return;
+      }
+      const currentIndex = tocIndex.visibleEntries.findIndex(
+        (entry) => entry.path === tocActivePath,
+      );
+      const nextIndex =
+        currentIndex === -1
+          ? tocIndex.visibleEntries.length - 1
+          : (currentIndex - 1 + tocIndex.visibleEntries.length) %
+            tocIndex.visibleEntries.length;
+      setTocActivePath(tocIndex.visibleEntries[nextIndex]?.path ?? null);
+    },
+    {
+      enabled: tocHotkeysEnabled,
+      preventDefault: true,
+    },
+    [tocHotkeysEnabled, tocIndex.visibleEntries, tocActivePath],
+  );
+
+  useHotkeys(
+    "l",
+    () => {
+      if (!tocActivePath) {
+        return;
+      }
+      const entry = tocIndex.entryByPath.get(tocActivePath);
+      if (!entry || !entry.hasChildren) {
+        return;
+      }
+      if (!tocExpandedPaths.has(tocActivePath)) {
+        setTocExpandedPaths((current) => new Set(current).add(tocActivePath));
+        return;
+      }
+      const firstChild = tocIndex.firstChildByPath.get(tocActivePath);
+      if (firstChild) {
+        setTocActivePath(firstChild);
+      }
+    },
+    {
+      enabled: tocHotkeysEnabled,
+      preventDefault: true,
+    },
+    [tocHotkeysEnabled, tocActivePath, tocExpandedPaths, tocIndex],
+  );
+
+  useHotkeys(
+    "h",
+    () => {
+      if (!tocActivePath) {
+        return;
+      }
+      if (tocExpandedPaths.has(tocActivePath)) {
+        setTocExpandedPaths((current) => {
+          const next = new Set(current);
+          next.delete(tocActivePath);
+          return next;
+        });
+        return;
+      }
+      const parentPath = tocIndex.parentByPath.get(tocActivePath);
+      if (parentPath) {
+        setTocActivePath(parentPath);
+      }
+    },
+    {
+      enabled: tocHotkeysEnabled,
+      preventDefault: true,
+    },
+    [tocHotkeysEnabled, tocActivePath, tocExpandedPaths, tocIndex],
+  );
+
+  useHotkeys(
+    "f",
+    () => {
+      const nextMode = ((tocFoldMode + 1) % 3) as 0 | 1 | 2;
+      setTocFoldMode(nextMode);
+      if (nextMode === 0) {
+        setTocExpandedPaths(new Set());
+        return;
+      }
+      if (nextMode === 1) {
+        setTocExpandedPaths(new Set(tocIndex.topLevelExpandablePaths));
+        return;
+      }
+      setTocExpandedPaths(new Set(tocIndex.allExpandablePaths));
+    },
+    {
+      enabled: tocHotkeysEnabled,
+      preventDefault: true,
+    },
+    [tocHotkeysEnabled, tocFoldMode, tocIndex.topLevelExpandablePaths, tocIndex.allExpandablePaths],
+  );
+
+  useHotkeys(
+    "enter",
+    () => {
+      if (!tocActivePath) {
+        return;
+      }
+      const entry = tocIndex.entryByPath.get(tocActivePath);
+      if (!entry || entry.item.page === null) {
+        return;
+      }
+      scrollToPage(entry.item.page);
+    },
+    {
+      enabled: tocHotkeysEnabled,
+      preventDefault: true,
+    },
+    [tocHotkeysEnabled, tocActivePath, tocIndex.entryByPath],
+  );
+
+  useHotkeys(
+    "g",
+    () => {
+      if (tocIndex.visibleEntries.length === 0) {
+        return;
+      }
+      if (tocGPressTimeoutRef.current) {
+        window.clearTimeout(tocGPressTimeoutRef.current);
+        tocGPressTimeoutRef.current = null;
+        setTocActivePath(tocIndex.visibleEntries[0]?.path ?? null);
+        return;
+      }
+      tocGPressTimeoutRef.current = window.setTimeout(() => {
+        tocGPressTimeoutRef.current = null;
+      }, 320);
+    },
+    {
+      enabled: tocHotkeysEnabled,
+      preventDefault: true,
+    },
+    [tocHotkeysEnabled, tocIndex.visibleEntries],
+  );
+
+  useHotkeys(
+    "shift+g",
+    () => {
+      if (tocIndex.visibleEntries.length === 0) {
+        return;
+      }
+      const lastIndex = tocIndex.visibleEntries.length - 1;
+      setTocActivePath(tocIndex.visibleEntries[lastIndex]?.path ?? null);
+    },
+    {
+      enabled: tocHotkeysEnabled,
+      preventDefault: true,
+    },
+    [tocHotkeysEnabled, tocIndex.visibleEntries],
   );
 
   const commandValue = commandOpen && !commandText ? ":" : commandText;
@@ -998,7 +1325,7 @@ function HomeComponent() {
                   Contents
                 </div>
                 <ScrollArea className="flex-1" type="scroll" scrollHideDelay={600}>
-                  <div className="px-3 py-2">
+                  <div ref={tocListRef} className="px-3 py-2">
                     {tocLoading ? (
                       <div className="text-muted-foreground">Loading...</div>
                     ) : tocItems.length > 0 ? (
