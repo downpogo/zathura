@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import Loader from "@/components/loader";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { StatusBar } from "@/components/status-bar";
 import {
   DEFAULT_THEME,
   THEMES,
@@ -17,6 +18,7 @@ import {
   writeThemeCookie,
   type ThemeId,
 } from "@/lib/theme";
+import { cn } from "@/lib/utils";
 
 const RECENT_STORAGE_KEY = "zathura.recent";
 const DOC_STORAGE_PREFIX = "zathura.doc.";
@@ -128,6 +130,10 @@ function HomeComponent() {
   const [commandText, setCommandText] = useState("");
   const [activeTheme, setActiveTheme] = useState(() => getStoredTheme() ?? DEFAULT_THEME);
   const [activeDocUrl, setActiveDocUrl] = useState<string | null>(null);
+  const [activeDocDisplay, setActiveDocDisplay] = useState<string | null>(null);
+  const [statusBarVisible, setStatusBarVisible] = useState(true);
+  const [currentPage, setCurrentPage] = useState<number | null>(null);
+  const [totalPages, setTotalPages] = useState(0);
   const [recentDocs, setRecentDocs] = useState<RecentDoc[]>([]);
   const [recentHighlightIndex, setRecentHighlightIndex] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -166,6 +172,9 @@ function HomeComponent() {
 
   const closeDocument = useCallback(() => {
     setActiveDocUrl(null);
+    setActiveDocDisplay(null);
+    setCurrentPage(null);
+    setTotalPages(0);
     setPdfLoading(false);
     setPdfError(null);
     setTocOpen(false);
@@ -245,9 +254,12 @@ function HomeComponent() {
   const openDocument = useCallback(
     (meta: DocMeta, docUrl: string) => {
       setActiveDocUrl(docUrl);
+      setActiveDocDisplay(meta.url ?? meta.label);
+      setTotalPages(0);
       const stored = loadDocState(meta.key);
       const lastOpened = Date.now();
       const lastPage = stored?.lastPage ?? 1;
+      setCurrentPage(lastPage);
       const toc = stored?.toc ?? null;
       const nextState: DocState = {
         key: meta.key,
@@ -484,6 +496,8 @@ function HomeComponent() {
         if (cancelled || renderIdRef.current !== renderId) {
           return;
         }
+
+        setTotalPages(pdf.numPages);
 
         if (isNewDoc && cachedTocRef.current === null) {
           const resolveOutline = async () => {
@@ -905,6 +919,7 @@ function HomeComponent() {
         return;
       }
       lastRecordedPageRef.current = pageNumber;
+      setCurrentPage(pageNumber);
       const nextState = {
         ...activeDocStateRef.current,
         lastPage: pageNumber,
@@ -1160,6 +1175,18 @@ function HomeComponent() {
     "tab",
     () => {
       setTocOpen((current) => !current);
+    },
+    {
+      enabled: Boolean(activeDocUrl) && !commandOpen,
+      preventDefault: true,
+    },
+    [activeDocUrl, commandOpen],
+  );
+
+  useHotkeys(
+    "ctrl+g",
+    () => {
+      setStatusBarVisible((current) => !current);
     },
     {
       enabled: Boolean(activeDocUrl) && !commandOpen,
@@ -1779,7 +1806,7 @@ function HomeComponent() {
               scrollHideDelay={600}
               viewportRef={scrollRef}
             >
-              <div className="relative min-h-screen w-full">
+              <div className={cn("relative min-h-screen w-full", statusBarVisible ? "pb-12" : null)}>
                 <div ref={viewerRef} className="pdf-viewer flex w-full flex-col items-start" />
                 {pdfLoading ? (
                   <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
@@ -1855,6 +1882,13 @@ function HomeComponent() {
           </div>
         </div>
       )}
+
+      {activeDocUrl && statusBarVisible && activeDocDisplay ? (
+        <StatusBar
+          left={activeDocDisplay}
+          right={totalPages > 0 ? `${currentPage ?? 1}/${totalPages}` : ""}
+        />
+      ) : null}
 
       {commandOpen ? (
         <div className="fixed inset-x-0 bottom-0 z-50 px-4 pb-6">
