@@ -62,8 +62,10 @@ function HomeComponent() {
   const [tocOpen, setTocOpen] = useState(false);
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
   const [tocLoading, setTocLoading] = useState(false);
-  const [zoomLevel] = useState(0.6);
+  const [zoomLevel, setZoomLevel] = useState(0.6);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const fileObjectUrlRef = useRef<string | null>(null);
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const renderIdRef = useRef(0);
@@ -92,6 +94,22 @@ function HomeComponent() {
   useEffect(() => {
     document.documentElement.dataset.theme = DEFAULT_THEME;
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (fileObjectUrlRef.current) {
+        URL.revokeObjectURL(fileObjectUrlRef.current);
+        fileObjectUrlRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (fileObjectUrlRef.current && activeDocUrl !== fileObjectUrlRef.current) {
+      URL.revokeObjectURL(fileObjectUrlRef.current);
+      fileObjectUrlRef.current = null;
+    }
+  }, [activeDocUrl]);
 
   useEffect(() => {
     if (!activeDocUrl) {
@@ -605,6 +623,18 @@ function HomeComponent() {
   );
 
   useHotkeys(
+    "o",
+    () => {
+      fileInputRef.current?.click();
+    },
+    {
+      enabled: !commandOpen,
+      preventDefault: true,
+    },
+    [commandOpen],
+  );
+
+  useHotkeys(
     "tab",
     () => {
       setTocOpen((current) => !current);
@@ -628,6 +658,44 @@ function HomeComponent() {
       preventDefault: true,
     },
     [commandOpen],
+  );
+
+  const zoomHotkeysEnabled = Boolean(activeDocUrl) && !commandOpen;
+
+  useHotkeys(
+    ["equal", "shift+equal", "add"],
+    () => {
+      setZoomLevel((current) => Math.min(4, current + 0.1));
+    },
+    {
+      enabled: zoomHotkeysEnabled,
+      preventDefault: true,
+    },
+    [zoomHotkeysEnabled],
+  );
+
+  useHotkeys(
+    ["minus", "subtract"],
+    () => {
+      setZoomLevel((current) => Math.max(0.4, current - 0.1));
+    },
+    {
+      enabled: zoomHotkeysEnabled,
+      preventDefault: true,
+    },
+    [zoomHotkeysEnabled],
+  );
+
+  useHotkeys(
+    "s",
+    () => {
+      setZoomLevel(0.8);
+    },
+    {
+      enabled: zoomHotkeysEnabled,
+      preventDefault: true,
+    },
+    [zoomHotkeysEnabled],
   );
 
   const commandValue = commandOpen && !commandText ? ":" : commandText;
@@ -657,8 +725,32 @@ function HomeComponent() {
     }
   };
 
+  const handleFileOpen = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (fileObjectUrlRef.current) {
+      URL.revokeObjectURL(fileObjectUrlRef.current);
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    fileObjectUrlRef.current = objectUrl;
+    setActiveDocUrl(objectUrl);
+    setCommandOpen(false);
+    event.target.value = "";
+  };
+
   return (
     <div className="min-h-screen bg-background text-foreground">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        onChange={handleFileOpen}
+        className="hidden"
+      />
       {activeDocUrl ? (
         <div className="fixed inset-0 bg-background">
           <div className="flex h-full w-full">
