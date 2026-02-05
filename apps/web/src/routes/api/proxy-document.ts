@@ -32,6 +32,12 @@ const pickHeader = (headers: Headers, name: string) => {
   return value ?? undefined;
 };
 
+const isPdfContentType = (value: string | null) => {
+  if (!value) return false;
+  const [type] = value.split(";");
+  return type.trim().toLowerCase() === "application/pdf";
+};
+
 export const Route = createFileRoute("/api/proxy-document")({
   server: {
     handlers: {
@@ -134,6 +140,20 @@ async function handleProxy(
     });
   }
 
+  const upstreamContentType = upstream.headers.get("content-type");
+  const isPdf = isPdfContentType(upstreamContentType);
+  const isNotModified = upstream.status === 304;
+
+  if (!isPdf && !isNotModified) {
+    return new Response("Only application/pdf content is allowed", {
+      status: 415,
+      headers: {
+        ...corsBaseHeaders,
+        "Content-Type": "text/plain; charset=utf-8",
+      },
+    });
+  }
+
   const headers = new Headers();
   for (const [key, value] of Object.entries(corsBaseHeaders)) {
     headers.set(key, value);
@@ -155,11 +175,6 @@ async function handleProxy(
     if (value) {
       headers.set(name, value);
     }
-  }
-
-  // Ensure a sane fallback type.
-  if (!headers.get("content-type")) {
-    headers.set("content-type", "application/pdf");
   }
 
   // Help PDFs display instead of downloading in some contexts.
