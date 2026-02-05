@@ -1,5 +1,4 @@
 import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { getGlobalStartContext } from "@tanstack/react-start";
 
 import { Toaster } from "@/components/ui/sonner";
@@ -14,7 +13,7 @@ import {
 
 import appCss from "../index.css?url";
 
-export interface RouterAppContext {}
+export interface RouterAppContext { }
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({
@@ -123,7 +122,6 @@ function RootDocument() {
           <Outlet />
         </div>
         <Toaster richColors />
-        <TanStackRouterDevtools position="bottom-left" />
         <Scripts />
       </body>
     </html>
