@@ -61,7 +61,7 @@ function HomeComponent() {
   const [tocOpen, setTocOpen] = useState(false);
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
   const [tocLoading, setTocLoading] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(0.8);
+  const [zoomLevel, setZoomLevel] = useState(0.6);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -157,67 +157,78 @@ function HomeComponent() {
         }
 
         if (isNewDoc) {
-          const resolveDestination = async (dest: unknown) => {
-            if (!dest) {
-              return null;
-            }
+          const resolveOutline = async () => {
+            const resolveDestination = async (dest: unknown) => {
+              if (!dest) {
+                return null;
+              }
 
-            let destination: unknown = dest;
-            if (typeof destination === "string") {
-              destination = await pdf.getDestination(destination);
-            }
+              let destination: unknown = dest;
+              if (typeof destination === "string") {
+                destination = await pdf.getDestination(destination);
+              }
 
-            if (!Array.isArray(destination) || destination.length === 0) {
-              return null;
-            }
+              if (!Array.isArray(destination) || destination.length === 0) {
+                return null;
+              }
 
-            const pageRef = destination[0];
-            if (typeof pageRef === "number") {
-              return pageRef + 1;
-            }
+              const pageRef = destination[0];
+              if (typeof pageRef === "number") {
+                return pageRef + 1;
+              }
+
+              try {
+                const pageIndex = await pdf.getPageIndex(pageRef);
+                return pageIndex + 1;
+              } catch (error) {
+                return null;
+              }
+            };
+
+            const resolveOutlineItem = async (item: {
+              title?: string;
+              dest?: unknown;
+              items?: unknown[];
+            }): Promise<TocItem> => {
+              const page = await resolveDestination(item.dest);
+              const children = Array.isArray(item.items)
+                ? await Promise.all(
+                    item.items.map((child) =>
+                      resolveOutlineItem(child as typeof item),
+                    ),
+                  )
+                : [];
+
+              return {
+                title: item.title || "Untitled",
+                page,
+                items: children,
+              };
+            };
 
             try {
-              const pageIndex = await pdf.getPageIndex(pageRef);
-              return pageIndex + 1;
+              const outline = await pdf.getOutline();
+              if (cancelled || renderIdRef.current !== renderId) {
+                return;
+              }
+
+              const resolvedOutline = outline
+                ? await Promise.all(outline.map(resolveOutlineItem))
+                : [];
+
+              if (!cancelled && renderIdRef.current === renderId) {
+                setTocItems(resolvedOutline);
+                setTocLoading(false);
+              }
             } catch (error) {
-              return null;
+              if (!cancelled && renderIdRef.current === renderId) {
+                setTocItems([]);
+                setTocLoading(false);
+              }
             }
           };
 
-          const resolveOutlineItem = async (item: {
-            title?: string;
-            dest?: unknown;
-            items?: unknown[];
-          }): Promise<TocItem> => {
-            const page = await resolveDestination(item.dest);
-            const children = Array.isArray(item.items)
-              ? await Promise.all(
-                  item.items.map((child) =>
-                    resolveOutlineItem(child as typeof item),
-                  ),
-                )
-              : [];
-
-            return {
-              title: item.title || "Untitled",
-              page,
-              items: children,
-            };
-          };
-
-          const outline = await pdf.getOutline();
-          if (cancelled || renderIdRef.current !== renderId) {
-            return;
-          }
-
-          const resolvedOutline = outline
-            ? await Promise.all(outline.map(resolveOutlineItem))
-            : [];
-
-          if (!cancelled && renderIdRef.current === renderId) {
-            setTocItems(resolvedOutline);
-            setTocLoading(false);
-          }
+          void resolveOutline();
         }
 
         const containerWidth =
