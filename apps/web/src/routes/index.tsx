@@ -1,11 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  MentionContent,
-  MentionInput,
-  MentionItem,
-  MentionRoot,
-} from "@diceui/mention";
+import { MentionContent, MentionInput, MentionItem, MentionRoot } from "@diceui/mention";
 import { useHotkeys } from "react-hotkeys-hook";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import { toast } from "sonner";
@@ -43,11 +38,7 @@ const THEME_ALIASES: Record<string, string> = {
 };
 
 const normalizeThemeInput = (value: string) =>
-  value
-    .trim()
-    .toLowerCase()
-    .replace(/_/g, "-")
-    .replace(/\s+/g, "-");
+  value.trim().toLowerCase().replace(/_/g, "-").replace(/\s+/g, "-");
 
 const resolveTheme = (value: string) => {
   const normalized = normalizeThemeInput(value);
@@ -1089,9 +1080,7 @@ function HomeComponent() {
     if (!list) {
       return;
     }
-    const target = list.querySelector(
-      `[data-toc-path="${tocActivePath}"]`,
-    ) as HTMLElement | null;
+    const target = list.querySelector(`[data-toc-path="${tocActivePath}"]`) as HTMLElement | null;
     if (target) {
       target.scrollIntoView({ block: "nearest" });
     }
@@ -1342,9 +1331,7 @@ function HomeComponent() {
         (entry) => entry.path === tocActivePath,
       );
       const nextIndex =
-        currentIndex === -1
-          ? 0
-          : (currentIndex + 1) % tocIndex.visibleEntries.length;
+        currentIndex === -1 ? 0 : (currentIndex + 1) % tocIndex.visibleEntries.length;
       setTocActivePath(tocIndex.visibleEntries[nextIndex]?.path ?? null);
     },
     {
@@ -1366,8 +1353,7 @@ function HomeComponent() {
       const nextIndex =
         currentIndex === -1
           ? tocIndex.visibleEntries.length - 1
-          : (currentIndex - 1 + tocIndex.visibleEntries.length) %
-            tocIndex.visibleEntries.length;
+          : (currentIndex - 1 + tocIndex.visibleEntries.length) % tocIndex.visibleEntries.length;
       setTocActivePath(tocIndex.visibleEntries[nextIndex]?.path ?? null);
     },
     {
@@ -1526,8 +1512,7 @@ function HomeComponent() {
       return true;
     }
     return (
-      theme.id.includes(themeQuery) ||
-      theme.label.toLowerCase().includes(commandArgs.toLowerCase())
+      theme.id.includes(themeQuery) || theme.label.toLowerCase().includes(commandArgs.toLowerCase())
     );
   });
   const recentQuery = commandArgs.toLowerCase();
@@ -1661,9 +1646,7 @@ function HomeComponent() {
         event.preventDefault();
         lastRecentInteractionRef.current = "keyboard";
         const nextIndex =
-          recentHighlightIndex === 0
-            ? recentSuggestions.length - 1
-            : recentHighlightIndex - 1;
+          recentHighlightIndex === 0 ? recentSuggestions.length - 1 : recentHighlightIndex - 1;
         setRecentHighlightIndex(nextIndex);
         return;
       }
@@ -1816,7 +1799,9 @@ function HomeComponent() {
                     </div>
                   </div>
                 ) : null}
-                {pdfError ? <div className="mt-6 text-base text-destructive">{pdfError}</div> : null}
+                {pdfError ? (
+                  <div className="mt-6 text-base text-destructive">{pdfError}</div>
+                ) : null}
               </div>
             </ScrollArea>
           </div>
