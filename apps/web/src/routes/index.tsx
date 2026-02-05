@@ -550,7 +550,7 @@ function HomeComponent() {
               ? "font-semibold text-primary"
               : depth === 1
                 ? "font-medium text-foreground"
-                : "text-muted-foreground";
+                : "text-foreground";
           const itemPadding = depth === 0 ? "py-1.5" : "py-0.5";
           const itemSpacing = depth === 0 ? "pb-3 last:pb-0" : "";
 
