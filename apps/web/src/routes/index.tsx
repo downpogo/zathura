@@ -18,6 +18,12 @@ const PDF_WORKER_SRC = new URL(
 
 GlobalWorkerOptions.workerSrc = PDF_WORKER_SRC;
 
+type TocItem = {
+  title: string;
+  page: number | null;
+  items: TocItem[];
+};
+
 const parseRgb = (value: string) => {
   const match = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
   if (!match) {
@@ -51,6 +57,9 @@ function HomeComponent() {
   const [activeDocUrl, setActiveDocUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
+  const [tocOpen, setTocOpen] = useState(false);
+  const [tocItems, setTocItems] = useState<TocItem[]>([]);
+  const [tocLoading, setTocLoading] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(0.8);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const viewerRef = useRef<HTMLDivElement | null>(null);
@@ -96,6 +105,8 @@ function HomeComponent() {
 
     if (isNewDoc) {
       setPdfLoading(true);
+      setTocItems([]);
+      setTocLoading(true);
     }
     setPdfError(null);
 
@@ -142,6 +153,70 @@ function HomeComponent() {
 
         if (cancelled || renderIdRef.current !== renderId) {
           return;
+        }
+
+        if (isNewDoc) {
+          const resolveDestination = async (dest: unknown) => {
+            if (!dest) {
+              return null;
+            }
+
+            let destination: unknown = dest;
+            if (typeof destination === "string") {
+              destination = await pdf.getDestination(destination);
+            }
+
+            if (!Array.isArray(destination) || destination.length === 0) {
+              return null;
+            }
+
+            const pageRef = destination[0];
+            if (typeof pageRef === "number") {
+              return pageRef + 1;
+            }
+
+            try {
+              const pageIndex = await pdf.getPageIndex(pageRef);
+              return pageIndex + 1;
+            } catch (error) {
+              return null;
+            }
+          };
+
+          const resolveOutlineItem = async (item: {
+            title?: string;
+            dest?: unknown;
+            items?: unknown[];
+          }): Promise<TocItem> => {
+            const page = await resolveDestination(item.dest);
+            const children = Array.isArray(item.items)
+              ? await Promise.all(
+                  item.items.map((child) =>
+                    resolveOutlineItem(child as typeof item),
+                  ),
+                )
+              : [];
+
+            return {
+              title: item.title || "Untitled",
+              page,
+              items: children,
+            };
+          };
+
+          const outline = await pdf.getOutline();
+          if (cancelled || renderIdRef.current !== renderId) {
+            return;
+          }
+
+          const resolvedOutline = outline
+            ? await Promise.all(outline.map(resolveOutlineItem))
+            : [];
+
+          if (!cancelled && renderIdRef.current === renderId) {
+            setTocItems(resolvedOutline);
+            setTocLoading(false);
+          }
         }
 
         const containerWidth =
@@ -407,6 +482,10 @@ function HomeComponent() {
         if (!cancelled) {
           setPdfError("Unable to load the PDF.");
           setPdfLoading(false);
+          if (isNewDoc) {
+            setTocItems([]);
+            setTocLoading(false);
+          }
         }
       }
     };
@@ -420,6 +499,52 @@ function HomeComponent() {
       }
     };
   }, [activeDocUrl, zoomLevel]);
+
+  const scrollToPage = (pageNumber: number) => {
+    const container = viewerRef.current;
+    const scrollContainer = scrollRef.current;
+    if (!container || !scrollContainer) {
+      return;
+    }
+
+    const target = container.querySelector(
+      `canvas[data-page="${pageNumber}"]`,
+    ) as HTMLCanvasElement | null;
+
+    if (!target) {
+      return;
+    }
+
+    scrollContainer.scrollTop = target.offsetTop;
+  };
+
+  const renderTocItems = (items: TocItem[], depth = 0) => (
+    <ul className="space-y-0.5">
+      {items.map((item, index) => {
+        const isInteractive = item.page !== null;
+        return (
+          <li key={`${depth}-${index}-${item.title}`}>
+            <button
+              type="button"
+              disabled={!isInteractive}
+              onClick={() =>
+                item.page !== null ? scrollToPage(item.page) : undefined
+              }
+              className={`w-full text-left text-xs transition-colors ${
+                isInteractive
+                  ? "text-foreground hover:text-primary"
+                  : "cursor-default text-muted-foreground"
+              }`}
+              style={{ paddingLeft: depth * 12 }}
+            >
+              {item.title}
+            </button>
+            {item.items.length > 0 ? renderTocItems(item.items, depth + 1) : null}
+          </li>
+        );
+      })}
+    </ul>
+  );
 
   useEffect(() => {
     if (!commandOpen) {
@@ -473,6 +598,12 @@ function HomeComponent() {
         return;
       }
 
+      if (event.key === "Tab") {
+        event.preventDefault();
+        setTocOpen((current) => !current);
+        return;
+      }
+
       if (event.key === "+" || event.key === "=") {
         event.preventDefault();
         setZoomLevel((current) => Math.min(4, current + 0.1));
@@ -523,24 +654,54 @@ function HomeComponent() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       {activeDocUrl ? (
-        <div ref={scrollRef} className="fixed inset-0 overflow-auto bg-background">
-          <div className="min-h-screen w-full">
-            <div
-              ref={viewerRef}
-              className="pdf-viewer flex w-full flex-col items-start"
-            />
-            {pdfLoading ? (
-              <div className="pointer-events-none fixed inset-0 z-10 flex items-center justify-center">
-                <div className="text-primary">
-                  <Loader />
+        <div className="fixed inset-0 bg-background">
+          <div className="flex h-full w-full">
+            {tocOpen ? (
+              <aside
+                aria-label="Table of contents"
+                className="flex h-full w-64 shrink-0 flex-col border-r border-border bg-card"
+              >
+                <div className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
+                  Contents
                 </div>
-              </div>
+                <div className="flex-1 overflow-auto px-3 py-2">
+                  {tocLoading ? (
+                    <div className="text-xs text-muted-foreground">
+                      Loading...
+                    </div>
+                  ) : tocItems.length > 0 ? (
+                    renderTocItems(tocItems)
+                  ) : (
+                    <div className="text-xs text-muted-foreground">
+                      No table of contents.
+                    </div>
+                  )}
+                </div>
+              </aside>
             ) : null}
-            {pdfError ? (
-              <div className="mt-6 text-sm text-destructive">
-                {pdfError}
+            <div
+              ref={scrollRef}
+              className="relative flex-1 overflow-auto"
+            >
+              <div className="min-h-screen w-full">
+                <div
+                  ref={viewerRef}
+                  className="pdf-viewer flex w-full flex-col items-start"
+                />
+                {pdfLoading ? (
+                  <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                    <div className="text-primary">
+                      <Loader />
+                    </div>
+                  </div>
+                ) : null}
+                {pdfError ? (
+                  <div className="mt-6 text-sm text-destructive">
+                    {pdfError}
+                  </div>
+                ) : null}
               </div>
-            ) : null}
+            </div>
           </div>
         </div>
       ) : null}
