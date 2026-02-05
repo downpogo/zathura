@@ -14,9 +14,6 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const DEFAULT_THEME = "tokyonight-night";
-const PDF_WORKER_SRC = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
-
-GlobalWorkerOptions.workerSrc = PDF_WORKER_SRC;
 
 type TocItem = {
   title: string;
@@ -88,6 +85,17 @@ function HomeComponent() {
     ],
     [],
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    GlobalWorkerOptions.workerSrc = new URL(
+      "pdfjs-dist/build/pdf.worker.min.mjs",
+      import.meta.url,
+    ).toString();
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = DEFAULT_THEME;
