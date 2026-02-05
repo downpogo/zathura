@@ -296,12 +296,33 @@ function HomeComponent() {
     [loadDocState, saveDocState, updateRecentDocs],
   );
 
+  const buildProxyUrl = useCallback(
+    (url: string) => `/api/proxy-document?url=${encodeURIComponent(url)}`,
+    [],
+  );
+
+  const resolvePdfLoadUrl = useCallback(
+    (url: string) => {
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+          return buildProxyUrl(url);
+        }
+      } catch {
+        // Allow relative URLs (same-origin) to pass through.
+      }
+
+      return url;
+    },
+    [buildProxyUrl],
+  );
+
   const openUrlDocument = useCallback(
     (url: string) => {
       const meta = buildUrlMeta(url);
-      openDocument(meta, url);
+      openDocument(meta, resolvePdfLoadUrl(url));
     },
-    [buildUrlMeta, openDocument],
+    [buildUrlMeta, openDocument, resolvePdfLoadUrl],
   );
 
   const commandDefinitions = useMemo(
@@ -1620,14 +1641,14 @@ function HomeComponent() {
             source: doc.source,
             url: doc.url,
           },
-          doc.url,
+          resolvePdfLoadUrl(doc.url),
         );
         return;
       }
       pendingRecentDocRef.current = doc;
       fileInputRef.current?.click();
     },
-    [openDocument],
+    [openDocument, resolvePdfLoadUrl],
   );
 
   const handleCommandKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
