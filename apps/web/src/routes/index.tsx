@@ -1631,6 +1631,22 @@ function HomeComponent() {
   );
 
   const handleCommandKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    // Special-case: `close` should execute immediately on selection.
+    // The mention UI otherwise uses Enter to "accept" the suggestion first, which
+    // makes `:close` feel like it needs two Enter presses.
+    if (!showThemeSuggestions && !showRecentSuggestions && event.key === "Enter") {
+      const isCloseExact = normalizedCommandName === "close" && !commandArgs;
+      const isCloseUniqueSuggestion =
+        !commandArgs && commandSuggestions.length === 1 && commandSuggestions[0]?.name === "close";
+
+      if (isCloseExact || isCloseUniqueSuggestion) {
+        event.preventDefault();
+        closeDocument();
+        setCommandOpen(false);
+        return;
+      }
+    }
+
     if (showRecentSuggestions) {
       if (recentSuggestions.length === 0) {
         return;
@@ -1822,6 +1838,13 @@ function HomeComponent() {
                 <span className="text-primary">:</span>
                 <span>
                   open <span className="text-muted-foreground">&lt;url&gt;</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-primary">:</span>
+                <span>
+                  recent
+                  <span className="text-muted-foreground"> show recent documents</span>
                 </span>
               </div>
               <div className="flex items-center gap-2">
