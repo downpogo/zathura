@@ -14,6 +14,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 const DEFAULT_THEME = "tokyonight-night";
 const THEME_STORAGE_KEY = "zathura.theme";
+const SCROLL_STEP_PX = 40;
 const THEMES = [
   { id: "tokyonight-night", label: "Tokyo Night" },
   { id: "catppuccin", label: "Catppuccin" },
@@ -718,7 +719,31 @@ function HomeComponent() {
     [commandOpen],
   );
 
-  const zoomHotkeysEnabled = Boolean(activeDocUrl) && !commandOpen;
+  const viewerHotkeysEnabled = Boolean(activeDocUrl) && !commandOpen;
+
+  const scrollByOffset = (deltaTop: number, deltaLeft: number) => {
+    const scrollContainer = scrollRef.current;
+    if (!scrollContainer) {
+      return;
+    }
+    scrollContainer.scrollBy({
+      top: deltaTop,
+      left: deltaLeft,
+      behavior: "auto",
+    });
+  };
+
+  const scrollByHalfPage = (direction: 1 | -1) => {
+    const scrollContainer = scrollRef.current;
+    if (!scrollContainer) {
+      return;
+    }
+    const halfPage = Math.max(1, Math.floor(scrollContainer.clientHeight / 2));
+    scrollContainer.scrollBy({
+      top: direction * halfPage,
+      behavior: "auto",
+    });
+  };
 
   useHotkeys(
     ["equal", "shift+equal", "add"],
@@ -726,10 +751,10 @@ function HomeComponent() {
       setZoomLevel((current) => Math.min(4, current + 0.1));
     },
     {
-      enabled: zoomHotkeysEnabled,
+      enabled: viewerHotkeysEnabled,
       preventDefault: true,
     },
-    [zoomHotkeysEnabled],
+    [viewerHotkeysEnabled],
   );
 
   useHotkeys(
@@ -738,10 +763,10 @@ function HomeComponent() {
       setZoomLevel((current) => Math.max(0.4, current - 0.1));
     },
     {
-      enabled: zoomHotkeysEnabled,
+      enabled: viewerHotkeysEnabled,
       preventDefault: true,
     },
-    [zoomHotkeysEnabled],
+    [viewerHotkeysEnabled],
   );
 
   useHotkeys(
@@ -750,10 +775,58 @@ function HomeComponent() {
       setZoomLevel(0.8);
     },
     {
-      enabled: zoomHotkeysEnabled,
+      enabled: viewerHotkeysEnabled,
       preventDefault: true,
     },
-    [zoomHotkeysEnabled],
+    [viewerHotkeysEnabled],
+  );
+
+  useHotkeys(
+    "j",
+    () => {
+      scrollByOffset(SCROLL_STEP_PX, 0);
+    },
+    {
+      enabled: viewerHotkeysEnabled,
+      preventDefault: true,
+    },
+    [viewerHotkeysEnabled],
+  );
+
+  useHotkeys(
+    "k",
+    () => {
+      scrollByOffset(-SCROLL_STEP_PX, 0);
+    },
+    {
+      enabled: viewerHotkeysEnabled,
+      preventDefault: true,
+    },
+    [viewerHotkeysEnabled],
+  );
+
+  useHotkeys(
+    "d",
+    () => {
+      scrollByHalfPage(1);
+    },
+    {
+      enabled: viewerHotkeysEnabled,
+      preventDefault: true,
+    },
+    [viewerHotkeysEnabled],
+  );
+
+  useHotkeys(
+    "u",
+    () => {
+      scrollByHalfPage(-1);
+    },
+    {
+      enabled: viewerHotkeysEnabled,
+      preventDefault: true,
+    },
+    [viewerHotkeysEnabled],
   );
 
   const commandValue = commandOpen && !commandText ? ":" : commandText;
