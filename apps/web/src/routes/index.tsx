@@ -7,6 +7,7 @@ import {
   MentionPortal,
   MentionRoot,
 } from "@diceui/mention";
+import { useHotkeys } from "react-hotkeys-hook";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
 import Loader from "@/components/loader";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -61,7 +62,7 @@ function HomeComponent() {
   const [tocOpen, setTocOpen] = useState(false);
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
   const [tocLoading, setTocLoading] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(0.6);
+  const [zoomLevel] = useState(0.6);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const viewerRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -587,68 +588,47 @@ function HomeComponent() {
     return () => cancelAnimationFrame(timer);
   }, [commandOpen, commandText]);
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === ":") {
-        const target = event.target as HTMLElement | null;
-        const isEditable =
-          target?.tagName === "INPUT" ||
-          target?.tagName === "TEXTAREA" ||
-          target?.isContentEditable;
-
-        if (isEditable) {
-          return;
-        }
-
-        event.preventDefault();
-        setCommandOpen(true);
-        setCommandText(":");
-      }
-
-      if (event.key === "Escape" && commandOpen) {
-        event.preventDefault();
-        setCommandOpen(false);
-      }
-
-      if (!activeDocUrl || commandOpen) {
+  useHotkeys(
+    ":",
+    () => {
+      if (commandOpen) {
         return;
       }
+      setCommandOpen(true);
+      setCommandText(":");
+    },
+    {
+      preventDefault: true,
+      useKey: true,
+    },
+    [commandOpen],
+  );
 
-      const target = event.target as HTMLElement | null;
-      const isEditable =
-        target?.tagName === "INPUT" ||
-        target?.tagName === "TEXTAREA" ||
-        target?.isContentEditable;
+  useHotkeys(
+    "tab",
+    () => {
+      setTocOpen((current) => !current);
+    },
+    {
+      enabled: Boolean(activeDocUrl) && !commandOpen,
+      preventDefault: true,
+    },
+    [activeDocUrl, commandOpen],
+  );
 
-      if (isEditable) {
-        return;
-      }
-
-      if (event.key === "Tab") {
-        event.preventDefault();
-        setTocOpen((current) => !current);
-        return;
-      }
-
-      if (event.key === "+" || event.key === "=") {
-        event.preventDefault();
-        setZoomLevel((current) => Math.min(4, current + 0.1));
-      }
-
-      if (event.key === "-") {
-        event.preventDefault();
-        setZoomLevel((current) => Math.max(0.4, current - 0.1));
-      }
-
-      if (event.key === "s") {
-        event.preventDefault();
-        setZoomLevel(0.8);
-      }
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeDocUrl, commandOpen]);
+  useHotkeys(
+    "escape",
+    () => {
+      setCommandOpen(false);
+    },
+    {
+      enabled: commandOpen,
+      enableOnFormTags: true,
+      enableOnContentEditable: true,
+      preventDefault: true,
+    },
+    [commandOpen],
+  );
 
   const commandValue = commandOpen && !commandText ? ":" : commandText;
 
