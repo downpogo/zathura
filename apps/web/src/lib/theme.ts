@@ -5,20 +5,9 @@ export const THEME_COOKIE_KEY = "zathura.theme";
 
 export const THEMES = [
   { id: "tokyonight-night", label: "Tokyo Night" },
-  { id: "catppuccin", label: "Catppuccin" },
-  { id: "catppuccin-latte", label: "Catppuccin Latte" },
-  { id: "ethereal", label: "Ethereal" },
-  { id: "everforest", label: "Everforest" },
-  { id: "flexoki-light", label: "Flexoki Light" },
-  { id: "gruvbox", label: "Gruvbox" },
   { id: "hackerman", label: "Hackerman" },
-  { id: "kanagawa", label: "Kanagawa" },
   { id: "matte-black", label: "Matte Black" },
-  { id: "miasma", label: "Miasma" },
-  { id: "nord", label: "Nord" },
-  { id: "osaka-jade", label: "Osaka Jade" },
-  { id: "ristretto", label: "Ristretto" },
-  { id: "rose-pine", label: "Rose Pine" },
+  { id: "flexoki-light", label: "Flexoki Light" },
 ] as const;
 
 export type ThemeId = (typeof THEMES)[number]["id"];
@@ -28,6 +17,11 @@ const THEME_IDS = new Set<string>(THEMES.map((theme) => theme.id));
 export const THEME_ALIASES: Record<string, ThemeId> = {
   "tokyo-night": "tokyonight-night",
   tokyonight: "tokyonight-night",
+
+  // Friendly shortcuts
+  hack: "hackerman",
+  matte: "matte-black",
+  flexoki: "flexoki-light",
 };
 
 export const normalizeThemeInput = (value: string) =>

@@ -98,32 +98,11 @@
   --sidebar-ring: #3d59a1;
 }
 
-:root[data-theme="catppuccin"] {
-  --theme-background: #1e1e2e;
-  --theme-foreground: #cdd6f4;
-  --theme-primary: #89b4fa;
-  --theme-destructive: #f38ba8;
-}
-
-:root[data-theme="catppuccin-latte"] {
-  --theme-background: #eff1f5;
-  --theme-foreground: #4c4f69;
-  --theme-primary: #1e66f5;
-  --theme-destructive: #d20f39;
-}
-
-:root[data-theme="ethereal"] {
-  --theme-background: #060b1e;
-  --theme-foreground: #ffcead;
-  --theme-primary: #7d82d9;
-  --theme-destructive: #ed5b5a;
-}
-
-:root[data-theme="everforest"] {
-  --theme-background: #2d353b;
-  --theme-foreground: #d3c6aa;
-  --theme-primary: #7fbbb3;
-  --theme-destructive: #e67e80;
+:root[data-theme="hackerman"] {
+  --theme-background: #0b0c16;
+  --theme-foreground: #ddf7ff;
+  --theme-primary: #82fb9c;
+  --theme-destructive: #50f872;
 }
 
 :root[data-theme="flexoki-light"] {
@@ -133,67 +112,11 @@
   --theme-destructive: #d14d41;
 }
 
-:root[data-theme="gruvbox"] {
-  --theme-background: #282828;
-  --theme-foreground: #d4be98;
-  --theme-primary: #7daea3;
-  --theme-destructive: #ea6962;
-}
-
-:root[data-theme="hackerman"] {
-  --theme-background: #0b0c16;
-  --theme-foreground: #ddf7ff;
-  --theme-primary: #82fb9c;
-  --theme-destructive: #50f872;
-}
-
-:root[data-theme="kanagawa"] {
-  --theme-background: #1f1f28;
-  --theme-foreground: #dcd7ba;
-  --theme-primary: #7e9cd8;
-  --theme-destructive: #c34043;
-}
-
 :root[data-theme="matte-black"] {
   --theme-background: #121212;
   --theme-foreground: #bebebe;
   --theme-primary: #e68e0d;
   --theme-destructive: #d35f5f;
-}
-
-:root[data-theme="miasma"] {
-  --theme-background: #222222;
-  --theme-foreground: #c2c2b0;
-  --theme-primary: #78824b;
-  --theme-destructive: #685742;
-}
-
-:root[data-theme="nord"] {
-  --theme-background: #2e3440;
-  --theme-foreground: #d8dee9;
-  --theme-primary: #81a1c1;
-  --theme-destructive: #bf616a;
-}
-
-:root[data-theme="osaka-jade"] {
-  --theme-background: #111c18;
-  --theme-foreground: #c1c497;
-  --theme-primary: #509475;
-  --theme-destructive: #ff5345;
-}
-
-:root[data-theme="ristretto"] {
-  --theme-background: #2c2525;
-  --theme-foreground: #e6d9db;
-  --theme-primary: #f38d70;
-  --theme-destructive: #fd6883;
-}
-
-:root[data-theme="rose-pine"] {
-  --theme-background: #faf4ed;
-  --theme-foreground: #575279;
-  --theme-primary: #56949f;
-  --theme-destructive: #b4637a;
 }
 
 .dark {
