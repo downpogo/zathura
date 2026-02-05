@@ -4,7 +4,6 @@ import {
   MentionContent,
   MentionInput,
   MentionItem,
-  MentionPortal,
   MentionRoot,
 } from "@diceui/mention";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -14,6 +13,53 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const DEFAULT_THEME = "tokyonight-night";
+const THEME_STORAGE_KEY = "zathura.theme";
+const THEMES = [
+  { id: "tokyonight-night", label: "Tokyo Night" },
+  { id: "catppuccin", label: "Catppuccin" },
+  { id: "catppuccin-latte", label: "Catppuccin Latte" },
+  { id: "ethereal", label: "Ethereal" },
+  { id: "everforest", label: "Everforest" },
+  { id: "flexoki-light", label: "Flexoki Light" },
+  { id: "gruvbox", label: "Gruvbox" },
+  { id: "hackerman", label: "Hackerman" },
+  { id: "kanagawa", label: "Kanagawa" },
+  { id: "matte-black", label: "Matte Black" },
+  { id: "miasma", label: "Miasma" },
+  { id: "nord", label: "Nord" },
+  { id: "osaka-jade", label: "Osaka Jade" },
+  { id: "ristretto", label: "Ristretto" },
+  { id: "rose-pine", label: "Rose Pine" },
+];
+const THEME_IDS = new Set(THEMES.map((theme) => theme.id));
+const THEME_ALIASES: Record<string, string> = {
+  "tokyo-night": "tokyonight-night",
+  tokyonight: "tokyonight-night",
+};
+
+const normalizeThemeInput = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-")
+    .replace(/\s+/g, "-");
+
+const resolveTheme = (value: string) => {
+  const normalized = normalizeThemeInput(value);
+  if (!normalized) {
+    return null;
+  }
+  const resolved = THEME_ALIASES[normalized] ?? normalized;
+  return THEME_IDS.has(resolved) ? resolved : null;
+};
+
+const getStoredTheme = () => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+  return stored ? resolveTheme(stored) : null;
+};
 
 type TocItem = {
   title: string;
@@ -51,6 +97,7 @@ export const Route = createFileRoute("/")({
 function HomeComponent() {
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandText, setCommandText] = useState("");
+  const [activeTheme, setActiveTheme] = useState(() => getStoredTheme() ?? DEFAULT_THEME);
   const [activeDocUrl, setActiveDocUrl] = useState<string | null>(null);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
@@ -58,6 +105,7 @@ function HomeComponent() {
   const [tocItems, setTocItems] = useState<TocItem[]>([]);
   const [tocLoading, setTocLoading] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(0.6);
+  const [themeHighlightIndex, setThemeHighlightIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const fileObjectUrlRef = useRef<string | null>(null);
@@ -65,6 +113,10 @@ function HomeComponent() {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const renderIdRef = useRef(0);
   const lastDocUrlRef = useRef<string | null>(null);
+  const lastThemeRef = useRef<string | null>(null);
+  const themeListRef = useRef<HTMLDivElement | null>(null);
+  const themeItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const lastThemeInteractionRef = useRef<"keyboard" | "mouse" | null>(null);
 
   const commandDefinitions = useMemo(
     () => [
@@ -79,6 +131,19 @@ function HomeComponent() {
           }
 
           setActiveDocUrl(url);
+          return { ok: true };
+        },
+      },
+      {
+        name: "theme",
+        signature: "theme <name>",
+        description: "Switch theme",
+        run: (args: string) => {
+          const nextTheme = resolveTheme(args);
+          if (!nextTheme) {
+            return { ok: false };
+          }
+          setActiveTheme(nextTheme);
           return { ok: true };
         },
       },
@@ -98,8 +163,15 @@ function HomeComponent() {
   }, []);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = DEFAULT_THEME;
-  }, []);
+    document.documentElement.dataset.theme = activeTheme;
+  }, [activeTheme]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    window.localStorage.setItem(THEME_STORAGE_KEY, activeTheme);
+  }, [activeTheme]);
 
   useEffect(() => {
     return () => {
@@ -128,6 +200,8 @@ function HomeComponent() {
     renderIdRef.current = renderId;
     const isNewDoc = activeDocUrl !== lastDocUrlRef.current;
     lastDocUrlRef.current = activeDocUrl;
+    const isThemeChange = activeTheme !== lastThemeRef.current;
+    lastThemeRef.current = activeTheme;
 
     if (isNewDoc) {
       setPdfLoading(true);
@@ -269,7 +343,8 @@ function HomeComponent() {
         const existingCanvases = container
           ? (Array.from(container.querySelectorAll("canvas[data-page]")) as HTMLCanvasElement[])
           : [];
-        const shouldRebuild = isNewDoc || !container || existingCanvases.length !== pdf.numPages;
+        const shouldRebuild =
+          isNewDoc || isThemeChange || !container || existingCanvases.length !== pdf.numPages;
 
         if (container) {
           if (shouldRebuild) {
@@ -518,7 +593,7 @@ function HomeComponent() {
         observer.disconnect();
       }
     };
-  }, [activeDocUrl, zoomLevel]);
+  }, [activeDocUrl, zoomLevel, activeTheme]);
 
   const scrollToPage = (pageNumber: number) => {
     const container = viewerRef.current;
@@ -682,6 +757,105 @@ function HomeComponent() {
   );
 
   const commandValue = commandOpen && !commandText ? ":" : commandText;
+  const commandInput = commandValue.replace(/^:/, "");
+  const trimmedCommand = commandInput.trimStart();
+  const [commandName = "", ...commandArgsParts] = trimmedCommand.split(/\s+/);
+  const normalizedCommandName = commandName.toLowerCase();
+  const commandArgs = commandArgsParts.join(" ").trim();
+  const themeQuery = normalizeThemeInput(commandArgs);
+  const showThemeSuggestions = normalizedCommandName === "theme";
+  const commandSuggestions = commandDefinitions.filter((command) =>
+    normalizedCommandName ? command.name.startsWith(normalizedCommandName) : true,
+  );
+  const themeSuggestions = THEMES.filter((theme) => {
+    if (!themeQuery) {
+      return true;
+    }
+    return (
+      theme.id.includes(themeQuery) ||
+      theme.label.toLowerCase().includes(commandArgs.toLowerCase())
+    );
+  });
+
+  useEffect(() => {
+    if (!showThemeSuggestions) {
+      return;
+    }
+    setThemeHighlightIndex(0);
+  }, [showThemeSuggestions, themeQuery]);
+
+  useEffect(() => {
+    if (!showThemeSuggestions) {
+      return;
+    }
+    setThemeHighlightIndex((current) => {
+      if (themeSuggestions.length === 0) {
+        return 0;
+      }
+      return Math.min(current, themeSuggestions.length - 1);
+    });
+  }, [showThemeSuggestions, themeSuggestions.length]);
+
+  useEffect(() => {
+    if (!showThemeSuggestions) {
+      return;
+    }
+    if (lastThemeInteractionRef.current !== "keyboard") {
+      return;
+    }
+    const item = themeItemRefs.current[themeHighlightIndex];
+    if (!item) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      item.scrollIntoView({ block: "nearest" });
+    });
+  }, [showThemeSuggestions, themeHighlightIndex]);
+
+  const previewTheme = (themeId: string) => {
+    if (themeId !== activeTheme) {
+      setActiveTheme(themeId);
+    }
+  };
+
+  const commitTheme = (themeId: string) => {
+    setActiveTheme(themeId);
+    setCommandOpen(false);
+  };
+
+  const handleCommandKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showThemeSuggestions || themeSuggestions.length === 0) {
+      return;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      lastThemeInteractionRef.current = "keyboard";
+      const nextIndex = (themeHighlightIndex + 1) % themeSuggestions.length;
+      setThemeHighlightIndex(nextIndex);
+      previewTheme(themeSuggestions[nextIndex].id);
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      lastThemeInteractionRef.current = "keyboard";
+      const nextIndex =
+        themeHighlightIndex === 0 ? themeSuggestions.length - 1 : themeHighlightIndex - 1;
+      setThemeHighlightIndex(nextIndex);
+      previewTheme(themeSuggestions[nextIndex].id);
+      return;
+    }
+
+    if (event.key === "Enter") {
+      event.preventDefault();
+      lastThemeInteractionRef.current = "keyboard";
+      const selected = themeSuggestions[themeHighlightIndex];
+      if (selected) {
+        commitTheme(selected.id);
+      }
+    }
+  };
 
   const handleCommandSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -693,6 +867,13 @@ function HomeComponent() {
 
     const [name, ...rest] = input.split(/\s+/);
     const args = rest.join(" ");
+    if (name === "theme") {
+      const resolvedTheme = resolveTheme(args);
+      if (!resolvedTheme && args && themeSuggestions.length === 1) {
+        commitTheme(themeSuggestions[0].id);
+        return;
+      }
+    }
     const definition = commandDefinitions.find((command) => command.name === name);
 
     if (!definition) {
@@ -771,7 +952,7 @@ function HomeComponent() {
                     </div>
                   </div>
                 ) : null}
-                {pdfError ? <div className="mt-6 text-sm text-destructive">{pdfError}</div> : null}
+                {pdfError ? <div className="mt-6 text-base text-destructive">{pdfError}</div> : null}
               </div>
             </ScrollArea>
           </div>
@@ -792,6 +973,12 @@ function HomeComponent() {
                 <span className="text-primary">:</span>
                 <span>
                   open <span className="text-muted-foreground">&lt;url&gt;</span>
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-primary">:</span>
+                <span>
+                  theme <span className="text-muted-foreground">&lt;name&gt;</span>
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -826,28 +1013,74 @@ function HomeComponent() {
 
       {commandOpen ? (
         <div className="fixed inset-x-0 bottom-0 z-50 px-4 pb-6">
-          <div className="mx-auto w-full max-w-3xl border border-border bg-card/90 p-3 shadow-lg backdrop-blur">
+          <div className="relative mx-auto w-full max-w-3xl border border-border bg-card/90 p-3 shadow-lg backdrop-blur">
             <MentionRoot trigger=":" inputValue={commandValue} onInputValueChange={setCommandText}>
               <form onSubmit={handleCommandSubmit}>
                 <MentionInput
                   ref={inputRef}
                   value={commandValue}
-                  className="w-full border border-border bg-background px-3 py-2 text-sm text-foreground outline-none transition focus:border-primary"
+                  onKeyDown={handleCommandKeyDown}
+                  className="w-full border border-border bg-background px-3 py-2 text-base text-foreground outline-none transition focus:border-primary"
                 />
               </form>
-              <MentionPortal>
-                <MentionContent className="z-50 mt-2 w-56 border border-border bg-card p-1 text-xs text-foreground shadow-lg">
-                  {commandDefinitions.map((command) => (
-                    <MentionItem
-                      key={command.name}
-                      value={command.name}
-                      className="cursor-default px-2 py-1 text-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
-                    >
-                      {command.signature}
-                    </MentionItem>
-                  ))}
-                </MentionContent>
-              </MentionPortal>
+              <div className="absolute left-0 right-0 bottom-full z-50 mb-2">
+                {showThemeSuggestions ? (
+                  <div
+                    ref={themeListRef}
+                    className="w-full max-h-64 overflow-auto border border-border bg-card p-1 text-base text-foreground shadow-lg"
+                  >
+                    {themeSuggestions.length > 0 ? (
+                      themeSuggestions.map((theme, index) => {
+                        const isActiveTheme = theme.id === activeTheme;
+                        return (
+                          <button
+                            key={theme.id}
+                            type="button"
+                            ref={(node) => {
+                              themeItemRefs.current[index] = node;
+                            }}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              commitTheme(theme.id);
+                            }}
+                            onMouseEnter={() => {
+                              lastThemeInteractionRef.current = "mouse";
+                              setThemeHighlightIndex(index);
+                            }}
+                            data-active={themeHighlightIndex === index}
+                            className="flex w-full items-center justify-between gap-3 px-2 py-1 text-left text-foreground transition-colors hover:bg-accent hover:text-accent-foreground data-[active=true]:bg-accent data-[active=true]:text-accent-foreground"
+                          >
+                            <span className="flex min-w-0 flex-1 items-center gap-2">
+                              <span
+                                aria-hidden="true"
+                                className={`w-3 text-primary ${isActiveTheme ? "opacity-100" : "opacity-0"}`}
+                              >
+                                *
+                              </span>
+                              <span className="truncate">{theme.label}</span>
+                            </span>
+                            <span className="font-mono text-muted-foreground">{theme.id}</span>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="px-2 py-1 text-muted-foreground">No themes found.</div>
+                    )}
+                  </div>
+                ) : (
+                  <MentionContent className="w-full border border-border bg-card p-1 text-base text-foreground shadow-lg">
+                    {commandSuggestions.map((command) => (
+                      <MentionItem
+                        key={command.name}
+                        value={command.name}
+                        className="cursor-default px-2 py-1 text-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground"
+                      >
+                        {command.signature}
+                      </MentionItem>
+                    ))}
+                  </MentionContent>
+                )}
+              </div>
             </MentionRoot>
           </div>
         </div>
