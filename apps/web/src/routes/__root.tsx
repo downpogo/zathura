@@ -18,13 +18,11 @@ export interface RouterAppContext { }
 export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({
     meta: [
-      {
-        charSet: "utf-8",
-      },
-      {
-        name: "viewport",
-        content: "width=device-width, initial-scale=1",
-      },
+      { charSet: "utf-8" },
+      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      { name: "description", content: "A minimal, Vim-style document viewer." },
+      { property: "og:title", content: "Zathura" },
+      { property: "og:description", content: "A minimal, Vim-style document viewer." },
       {
         title: "Zathura",
       },
@@ -32,7 +30,8 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
     links: [
       {
         rel: "icon",
-        href: "https://fav.farm/🔥",
+        type: "image/svg+xml",
+        href: "/logo.svg",
       },
       {
         rel: "stylesheet",

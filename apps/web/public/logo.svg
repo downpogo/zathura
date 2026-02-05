@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <style>
+    /* Default: Dark Mode (TokyoNight) */
+    :root {
+      --bg: #1a1b26;
+      --text-start: #7aa2f7;
+      --text-end: #bb9af7;
+      --accent: #9ece6a;
+    }
+
+    /* Light Mode Overrides */
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #e1e2e7;
+        --text-start: #34548a; /* Darker blue for contrast */
+        --text-end: #5a4a78;   /* Darker magenta for contrast */
+        --accent: #485e30;     /* Darker green */
+      }
+    }
+
+    .bg-rect { fill: var(--bg); transition: fill 0.3s ease; }
+    .zt-text { fill: url(#tokyo-grad); font-family: ui-monospace, 'Cascadia Code', monospace; font-weight: 900; font-size: 40px; letter-spacing: -1.5px; }
+    .accent-bar { fill: var(--accent); transition: fill 0.3s ease; }
+  </style>
+
+  <defs>
+    <linearGradient id="tokyo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color: var(--text-start)" />
+      <stop offset="100%" style="stop-color: var(--text-end)" />
+    </linearGradient>
+  </defs>
+
+  <rect class="bg-rect" width="100" height="100" rx="24" />
+
+  <text x="50%" y="54%" 
+        class="zt-text"
+        dominant-baseline="middle" 
+        text-anchor="middle">
+    ZT
+  </text>
+
+  <rect class="accent-bar" x="30" y="72" width="40" height="3" rx="1.5" />
+</svg>
