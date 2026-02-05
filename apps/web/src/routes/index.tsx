@@ -15,6 +15,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 const DEFAULT_THEME = "tokyonight-night";
 const THEME_STORAGE_KEY = "zathura.theme";
+const RECENT_STORAGE_KEY = "zathura.recent";
+const DOC_STORAGE_PREFIX = "zathura.doc.";
+const RECENT_DOC_LIMIT = 10;
 const SCROLL_STEP_PX = 40;
 const THEMES = [
   { id: "tokyonight-night", label: "Tokyo Night" },
@@ -69,6 +72,37 @@ type TocItem = {
   items: TocItem[];
 };
 
+type DocSource = "url" | "file";
+
+type DocMeta = {
+  key: string;
+  sourceId: string;
+  label: string;
+  source: DocSource;
+  url: string | null;
+};
+
+type RecentDoc = {
+  key: string;
+  sourceId: string;
+  label: string;
+  source: DocSource;
+  url: string | null;
+  lastOpened: number;
+  lastPage: number;
+};
+
+type DocState = {
+  key: string;
+  sourceId: string;
+  label: string;
+  source: DocSource;
+  url: string | null;
+  lastOpened: number;
+  lastPage: number;
+  toc: TocItem[] | null;
+};
+
 const parseRgb = (value: string) => {
   const match = value.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/i);
   if (!match) {
@@ -92,6 +126,42 @@ const resolveThemeColor = (variable: string) => {
   return parseRgb(color);
 };
 
+const hashString = (value: string) => {
+  let hash = 5381;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = ((hash << 5) + hash) ^ value.charCodeAt(i);
+  }
+  return Math.abs(hash).toString(36);
+};
+
+const getDocStorageKey = (key: string) => `${DOC_STORAGE_PREFIX}${key}`;
+
+const readStoredJson = <T,>(key: string): T | null => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const raw = window.localStorage.getItem(key);
+  if (!raw) {
+    return null;
+  }
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+};
+
+const writeStoredJson = (key: string, value: unknown) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Ignore storage failures.
+  }
+};
+
 export const Route = createFileRoute("/")({
   component: HomeComponent,
 });
@@ -101,6 +171,8 @@ function HomeComponent() {
   const [commandText, setCommandText] = useState("");
   const [activeTheme, setActiveTheme] = useState(() => getStoredTheme() ?? DEFAULT_THEME);
   const [activeDocUrl, setActiveDocUrl] = useState<string | null>(null);
+  const [recentDocs, setRecentDocs] = useState<RecentDoc[]>([]);
+  const [recentHighlightIndex, setRecentHighlightIndex] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [tocOpen, setTocOpen] = useState(false);
@@ -120,10 +192,20 @@ function HomeComponent() {
   const lastDocUrlRef = useRef<string | null>(null);
   const lastThemeRef = useRef<string | null>(null);
   const themeListRef = useRef<HTMLDivElement | null>(null);
+  const recentListRef = useRef<HTMLDivElement | null>(null);
   const tocListRef = useRef<HTMLDivElement | null>(null);
   const themeItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const recentItemRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const lastThemeInteractionRef = useRef<"keyboard" | "mouse" | null>(null);
+  const lastRecentInteractionRef = useRef<"keyboard" | "mouse" | null>(null);
   const tocGPressTimeoutRef = useRef<number | null>(null);
+  const pendingRecentDocRef = useRef<RecentDoc | null>(null);
+  const activeDocStateRef = useRef<DocState | null>(null);
+  const cachedTocRef = useRef<TocItem[] | null>(null);
+  const pendingRestorePageRef = useRef<number | null>(null);
+  const pageCanvasesRef = useRef<HTMLCanvasElement[]>([]);
+  const lastRecordedPageRef = useRef<number | null>(null);
+  const scrollRafRef = useRef<number | null>(null);
 
   const closeDocument = useCallback(() => {
     setActiveDocUrl(null);
@@ -132,7 +214,126 @@ function HomeComponent() {
     setTocOpen(false);
     setTocItems([]);
     setTocLoading(false);
+    activeDocStateRef.current = null;
+    cachedTocRef.current = null;
+    pendingRestorePageRef.current = null;
+    pageCanvasesRef.current = [];
+    lastRecordedPageRef.current = null;
+    if (scrollRafRef.current) {
+      cancelAnimationFrame(scrollRafRef.current);
+      scrollRafRef.current = null;
+    }
   }, []);
+
+  const loadRecentDocs = useCallback(
+    () => readStoredJson<RecentDoc[]>(RECENT_STORAGE_KEY) ?? [],
+    [],
+  );
+
+  const loadDocState = useCallback(
+    (key: string) => readStoredJson<DocState>(getDocStorageKey(key)),
+    [],
+  );
+
+  const saveDocState = useCallback((state: DocState) => {
+    writeStoredJson(getDocStorageKey(state.key), state);
+  }, []);
+
+  const updateRecentDocs = useCallback((entry: RecentDoc) => {
+    setRecentDocs((current) => {
+      const next = [entry, ...current.filter((doc) => doc.key !== entry.key)].slice(
+        0,
+        RECENT_DOC_LIMIT,
+      );
+      writeStoredJson(RECENT_STORAGE_KEY, next);
+      return next;
+    });
+  }, []);
+
+  const buildUrlLabel = (url: string) => {
+    try {
+      const parsed = new URL(url);
+      const segments = parsed.pathname.split("/").filter(Boolean);
+      const last = segments[segments.length - 1];
+      return last ? decodeURIComponent(last) : parsed.hostname;
+    } catch {
+      return url;
+    }
+  };
+
+  const buildUrlMeta = useCallback((url: string): DocMeta => {
+    const sourceId = url;
+    return {
+      key: hashString(sourceId),
+      sourceId,
+      label: buildUrlLabel(url),
+      source: "url",
+      url,
+    };
+  }, []);
+
+  const buildFileMeta = useCallback((file: File): DocMeta => {
+    const relativePath = (file as File & { webkitRelativePath?: string }).webkitRelativePath;
+    const sourceBase = relativePath || file.name;
+    const sourceId = `${sourceBase}:${file.size}:${file.lastModified}`;
+    return {
+      key: hashString(sourceId),
+      sourceId,
+      label: file.name,
+      source: "file",
+      url: null,
+    };
+  }, []);
+
+  const openDocument = useCallback(
+    (meta: DocMeta, docUrl: string) => {
+      setActiveDocUrl(docUrl);
+      const stored = loadDocState(meta.key);
+      const lastOpened = Date.now();
+      const lastPage = stored?.lastPage ?? 1;
+      const toc = stored?.toc ?? null;
+      const nextState: DocState = {
+        key: meta.key,
+        sourceId: meta.sourceId,
+        label: meta.label,
+        source: meta.source,
+        url: meta.url,
+        lastOpened,
+        lastPage,
+        toc,
+      };
+      activeDocStateRef.current = nextState;
+      cachedTocRef.current = toc;
+      pendingRestorePageRef.current = lastPage;
+      lastRecordedPageRef.current = lastPage;
+      if (toc !== null) {
+        setTocItems(toc);
+        setTocLoading(false);
+      } else {
+        setTocItems([]);
+        setTocLoading(true);
+      }
+      updateRecentDocs({
+        key: meta.key,
+        sourceId: meta.sourceId,
+        label: meta.label,
+        source: meta.source,
+        url: meta.url,
+        lastOpened,
+        lastPage,
+      });
+      saveDocState(nextState);
+    },
+    [loadDocState, saveDocState, updateRecentDocs],
+  );
+
+  const openUrlDocument = useCallback(
+    (url: string) => {
+      const meta = buildUrlMeta(url);
+      openDocument(meta, url);
+    },
+    [buildUrlMeta, openDocument],
+  );
 
   const commandDefinitions = useMemo(
     () => [
@@ -146,7 +347,7 @@ function HomeComponent() {
             return { ok: false };
           }
 
-          setActiveDocUrl(url);
+          openUrlDocument(url);
           return { ok: true };
         },
       },
@@ -158,6 +359,12 @@ function HomeComponent() {
           closeDocument();
           return { ok: true };
         },
+      },
+      {
+        name: "recent",
+        signature: "recent",
+        description: "Show recent documents",
+        run: () => ({ ok: false }),
       },
       {
         name: "theme",
@@ -173,7 +380,7 @@ function HomeComponent() {
         },
       },
     ],
-    [closeDocument],
+    [closeDocument, openUrlDocument],
   );
 
   useEffect(() => {
@@ -197,6 +404,10 @@ function HomeComponent() {
     }
     window.localStorage.setItem(THEME_STORAGE_KEY, activeTheme);
   }, [activeTheme]);
+
+  useEffect(() => {
+    setRecentDocs(loadRecentDocs());
+  }, [loadRecentDocs]);
 
   useEffect(() => {
     return () => {
@@ -245,8 +456,13 @@ function HomeComponent() {
 
     if (isNewDoc) {
       setPdfLoading(true);
-      setTocItems([]);
-      setTocLoading(true);
+      if (cachedTocRef.current !== null) {
+        setTocItems(cachedTocRef.current);
+        setTocLoading(false);
+      } else {
+        setTocItems([]);
+        setTocLoading(true);
+      }
     }
     setPdfError(null);
 
@@ -305,7 +521,7 @@ function HomeComponent() {
           return;
         }
 
-        if (isNewDoc) {
+        if (isNewDoc && cachedTocRef.current === null) {
           const resolveOutline = async () => {
             const resolveDestination = async (dest: unknown) => {
               if (!dest) {
@@ -366,16 +582,36 @@ function HomeComponent() {
               if (!cancelled && renderIdRef.current === renderId) {
                 setTocItems(resolvedOutline);
                 setTocLoading(false);
+                cachedTocRef.current = resolvedOutline;
+                if (activeDocStateRef.current) {
+                  const nextState = {
+                    ...activeDocStateRef.current,
+                    toc: resolvedOutline,
+                  };
+                  activeDocStateRef.current = nextState;
+                  saveDocState(nextState);
+                }
               }
             } catch {
               if (!cancelled && renderIdRef.current === renderId) {
                 setTocItems([]);
                 setTocLoading(false);
+                cachedTocRef.current = [];
+                if (activeDocStateRef.current) {
+                  const nextState = {
+                    ...activeDocStateRef.current,
+                    toc: [],
+                  };
+                  activeDocStateRef.current = nextState;
+                  saveDocState(nextState);
+                }
               }
             }
           };
 
           void resolveOutline();
+        } else if (isNewDoc) {
+          setTocLoading(false);
         }
 
         const containerWidth = container?.clientWidth || document.documentElement.clientWidth;
@@ -439,6 +675,18 @@ function HomeComponent() {
               if (anchorCanvas) {
                 scrollContainer.scrollTop = anchorCanvas.offsetTop + scrollAnchor.offset;
               }
+            });
+          }
+
+          pageCanvasesRef.current = Array.from(
+            container.querySelectorAll("canvas[data-page]"),
+          ) as HTMLCanvasElement[];
+
+          if (isNewDoc && pendingRestorePageRef.current && scrollContainer) {
+            const restorePage = pendingRestorePageRef.current;
+            pendingRestorePageRef.current = null;
+            requestAnimationFrame(() => {
+              scrollToPage(restorePage);
             });
           }
         }
@@ -644,7 +892,7 @@ function HomeComponent() {
         observer.disconnect();
       }
     };
-  }, [activeDocUrl, zoomLevel, activeTheme, closeDocument]);
+  }, [activeDocUrl, zoomLevel, activeTheme, closeDocument, saveDocState]);
 
   const scrollToPage = (pageNumber: number) => {
     const container = viewerRef.current;
@@ -663,6 +911,81 @@ function HomeComponent() {
 
     scrollContainer.scrollTop = target.offsetTop;
   };
+
+  const getCurrentPage = useCallback(() => {
+    const scrollContainer = scrollRef.current;
+    const canvases = pageCanvasesRef.current;
+    if (!scrollContainer || canvases.length === 0) {
+      return null;
+    }
+    const anchor = scrollContainer.scrollTop + Math.max(1, scrollContainer.clientHeight * 0.1);
+    for (const canvas of canvases) {
+      const pageNumber = Number(canvas.dataset.page);
+      if (!Number.isFinite(pageNumber)) {
+        continue;
+      }
+      if (canvas.offsetTop + canvas.offsetHeight >= anchor) {
+        return pageNumber;
+      }
+    }
+    const last = canvases[canvases.length - 1];
+    return last ? Number(last.dataset.page) || null : null;
+  }, []);
+
+  const updateDocProgress = useCallback(
+    (pageNumber: number) => {
+      if (!activeDocStateRef.current || pageNumber < 1) {
+        return;
+      }
+      if (lastRecordedPageRef.current === pageNumber) {
+        return;
+      }
+      lastRecordedPageRef.current = pageNumber;
+      const nextState = {
+        ...activeDocStateRef.current,
+        lastPage: pageNumber,
+      };
+      activeDocStateRef.current = nextState;
+      saveDocState(nextState);
+      updateRecentDocs({
+        key: nextState.key,
+        sourceId: nextState.sourceId,
+        label: nextState.label,
+        source: nextState.source,
+        url: nextState.url,
+        lastOpened: nextState.lastOpened,
+        lastPage: nextState.lastPage,
+      });
+    },
+    [saveDocState, updateRecentDocs],
+  );
+
+  useEffect(() => {
+    const scrollContainer = scrollRef.current;
+    if (!scrollContainer || !activeDocUrl) {
+      return undefined;
+    }
+    const handleScroll = () => {
+      if (scrollRafRef.current) {
+        return;
+      }
+      scrollRafRef.current = requestAnimationFrame(() => {
+        scrollRafRef.current = null;
+        const currentPage = getCurrentPage();
+        if (currentPage) {
+          updateDocProgress(currentPage);
+        }
+      });
+    };
+    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+    return () => {
+      scrollContainer.removeEventListener("scroll", handleScroll);
+      if (scrollRafRef.current) {
+        cancelAnimationFrame(scrollRafRef.current);
+        scrollRafRef.current = null;
+      }
+    };
+  }, [activeDocUrl, getCurrentPage, updateDocProgress]);
 
   type TocEntry = {
     item: TocItem;
@@ -1194,6 +1517,7 @@ function HomeComponent() {
   const commandArgs = commandArgsParts.join(" ").trim();
   const themeQuery = normalizeThemeInput(commandArgs);
   const showThemeSuggestions = normalizedCommandName === "theme";
+  const showRecentSuggestions = normalizedCommandName === "recent";
   const commandSuggestions = commandDefinitions.filter((command) =>
     normalizedCommandName ? command.name.startsWith(normalizedCommandName) : true,
   );
@@ -1204,6 +1528,17 @@ function HomeComponent() {
     return (
       theme.id.includes(themeQuery) ||
       theme.label.toLowerCase().includes(commandArgs.toLowerCase())
+    );
+  });
+  const recentQuery = commandArgs.toLowerCase();
+  const recentSuggestions = recentDocs.filter((doc) => {
+    if (!recentQuery) {
+      return true;
+    }
+    return (
+      doc.label.toLowerCase().includes(recentQuery) ||
+      (doc.url ? doc.url.toLowerCase().includes(recentQuery) : false) ||
+      doc.sourceId.toLowerCase().includes(recentQuery)
     );
   });
 
@@ -1242,6 +1577,41 @@ function HomeComponent() {
     });
   }, [showThemeSuggestions, themeHighlightIndex]);
 
+  useEffect(() => {
+    if (!showRecentSuggestions) {
+      return;
+    }
+    setRecentHighlightIndex(0);
+  }, [showRecentSuggestions, recentQuery]);
+
+  useEffect(() => {
+    if (!showRecentSuggestions) {
+      return;
+    }
+    setRecentHighlightIndex((current) => {
+      if (recentSuggestions.length === 0) {
+        return 0;
+      }
+      return Math.min(current, recentSuggestions.length - 1);
+    });
+  }, [showRecentSuggestions, recentSuggestions.length]);
+
+  useEffect(() => {
+    if (!showRecentSuggestions) {
+      return;
+    }
+    if (lastRecentInteractionRef.current !== "keyboard") {
+      return;
+    }
+    const item = recentItemRefs.current[recentHighlightIndex];
+    if (!item) {
+      return;
+    }
+    requestAnimationFrame(() => {
+      item.scrollIntoView({ block: "nearest" });
+    });
+  }, [showRecentSuggestions, recentHighlightIndex]);
+
   const previewTheme = (themeId: string) => {
     if (themeId !== activeTheme) {
       setActiveTheme(themeId);
@@ -1253,7 +1623,60 @@ function HomeComponent() {
     setCommandOpen(false);
   };
 
+  const openRecentDoc = useCallback(
+    (doc: RecentDoc) => {
+      setCommandOpen(false);
+      if (doc.source === "url" && doc.url) {
+        openDocument(
+          {
+            key: doc.key,
+            sourceId: doc.sourceId,
+            label: doc.label,
+            source: doc.source,
+            url: doc.url,
+          },
+          doc.url,
+        );
+        return;
+      }
+      pendingRecentDocRef.current = doc;
+      fileInputRef.current?.click();
+    },
+    [openDocument],
+  );
+
   const handleCommandKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (showRecentSuggestions) {
+      if (recentSuggestions.length === 0) {
+        return;
+      }
+      if (event.key === "ArrowDown") {
+        event.preventDefault();
+        lastRecentInteractionRef.current = "keyboard";
+        const nextIndex = (recentHighlightIndex + 1) % recentSuggestions.length;
+        setRecentHighlightIndex(nextIndex);
+        return;
+      }
+      if (event.key === "ArrowUp") {
+        event.preventDefault();
+        lastRecentInteractionRef.current = "keyboard";
+        const nextIndex =
+          recentHighlightIndex === 0
+            ? recentSuggestions.length - 1
+            : recentHighlightIndex - 1;
+        setRecentHighlightIndex(nextIndex);
+        return;
+      }
+      if (event.key === "Enter") {
+        event.preventDefault();
+        lastRecentInteractionRef.current = "keyboard";
+        const selected = recentSuggestions[recentHighlightIndex];
+        if (selected) {
+          openRecentDoc(selected);
+        }
+      }
+      return;
+    }
     if (!showThemeSuggestions || themeSuggestions.length === 0) {
       return;
     }
@@ -1329,7 +1752,18 @@ function HomeComponent() {
 
     const objectUrl = URL.createObjectURL(file);
     fileObjectUrlRef.current = objectUrl;
-    setActiveDocUrl(objectUrl);
+    const pendingRecent = pendingRecentDocRef.current;
+    pendingRecentDocRef.current = null;
+    const meta = buildFileMeta(file);
+    const resolvedMeta =
+      pendingRecent && pendingRecent.key === meta.key
+        ? {
+            ...meta,
+            label: pendingRecent.label,
+            sourceId: pendingRecent.sourceId,
+          }
+        : meta;
+    openDocument(resolvedMeta, objectUrl);
     setCommandOpen(false);
     event.target.value = "";
   };
@@ -1454,7 +1888,39 @@ function HomeComponent() {
                 />
               </form>
               <div className="absolute left-0 right-0 bottom-full z-50 mb-2">
-                {showThemeSuggestions ? (
+                {showRecentSuggestions ? (
+                  <div
+                    ref={recentListRef}
+                    className="w-full max-h-64 overflow-auto border border-border bg-card p-1 text-base text-foreground shadow-lg"
+                  >
+                    {recentSuggestions.length > 0 ? (
+                      recentSuggestions.map((doc, index) => (
+                        <button
+                          key={`${doc.key}-${doc.lastOpened}`}
+                          type="button"
+                          ref={(node) => {
+                            recentItemRefs.current[index] = node;
+                          }}
+                          onMouseDown={(event) => {
+                            event.preventDefault();
+                            openRecentDoc(doc);
+                          }}
+                          onMouseEnter={() => {
+                            lastRecentInteractionRef.current = "mouse";
+                            setRecentHighlightIndex(index);
+                          }}
+                          data-active={recentHighlightIndex === index}
+                          className="flex w-full items-center justify-between gap-3 px-2 py-1 text-left text-foreground transition-colors hover:bg-accent hover:text-accent-foreground data-[active=true]:bg-accent data-[active=true]:text-accent-foreground"
+                        >
+                          <span className="min-w-0 flex-1 truncate">{doc.label}</span>
+                          <span className="font-mono text-muted-foreground">p{doc.lastPage}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="px-2 py-1 text-muted-foreground">No recent documents.</div>
+                    )}
+                  </div>
+                ) : showThemeSuggestions ? (
                   <div
                     ref={themeListRef}
                     className="w-full max-h-64 overflow-auto border border-border bg-card p-1 text-base text-foreground shadow-lg"
