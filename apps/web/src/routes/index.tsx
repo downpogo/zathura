@@ -13,10 +13,7 @@ import Loader from "@/components/loader";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const DEFAULT_THEME = "tokyonight-night";
-const PDF_WORKER_SRC = new URL(
-  "pdfjs-dist/build/pdf.worker.min.mjs",
-  import.meta.url,
-).toString();
+const PDF_WORKER_SRC = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url).toString();
 
 GlobalWorkerOptions.workerSrc = PDF_WORKER_SRC;
 
@@ -199,7 +196,7 @@ function HomeComponent() {
               try {
                 const pageIndex = await pdf.getPageIndex(pageRef);
                 return pageIndex + 1;
-              } catch (error) {
+              } catch {
                 return null;
               }
             };
@@ -212,9 +209,7 @@ function HomeComponent() {
               const page = await resolveDestination(item.dest);
               const children = Array.isArray(item.items)
                 ? await Promise.all(
-                    item.items.map((child) =>
-                      resolveOutlineItem(child as typeof item),
-                    ),
+                    item.items.map((child) => resolveOutlineItem(child as typeof item)),
                   )
                 : [];
 
@@ -239,7 +234,7 @@ function HomeComponent() {
                 setTocItems(resolvedOutline);
                 setTocLoading(false);
               }
-            } catch (error) {
+            } catch {
               if (!cancelled && renderIdRef.current === renderId) {
                 setTocItems([]);
                 setTocLoading(false);
@@ -250,27 +245,22 @@ function HomeComponent() {
           void resolveOutline();
         }
 
-        const containerWidth =
-          container?.clientWidth || document.documentElement.clientWidth;
+        const containerWidth = container?.clientWidth || document.documentElement.clientWidth;
         const themeBackground = resolveThemeColor("--background");
         const themeForeground = resolveThemeColor("--foreground");
 
         const firstPage = await pdf.getPage(1);
         const baseViewport = firstPage.getViewport({ scale: 1 });
-        const baseScale =
-          (containerWidth / baseViewport.width) * zoomLevel;
+        const baseScale = (containerWidth / baseViewport.width) * zoomLevel;
         const scaledViewport = firstPage.getViewport({ scale: baseScale });
         const outputScale = Math.min(window.devicePixelRatio || 1, 2);
         const baseCssWidth = Math.floor(scaledViewport.width);
         const baseCssHeight = Math.floor(scaledViewport.height);
 
         const existingCanvases = container
-          ? (Array.from(
-              container.querySelectorAll("canvas[data-page]"),
-            ) as HTMLCanvasElement[])
+          ? (Array.from(container.querySelectorAll("canvas[data-page]")) as HTMLCanvasElement[])
           : [];
-        const shouldRebuild =
-          isNewDoc || !container || existingCanvases.length !== pdf.numPages;
+        const shouldRebuild = isNewDoc || !container || existingCanvases.length !== pdf.numPages;
 
         if (container) {
           if (shouldRebuild) {
@@ -313,8 +303,7 @@ function HomeComponent() {
                 `canvas[data-page="${scrollAnchor?.page}"]`,
               ) as HTMLCanvasElement | null;
               if (anchorCanvas) {
-                scrollContainer.scrollTop =
-                  anchorCanvas.offsetTop + scrollAnchor.offset;
+                scrollContainer.scrollTop = anchorCanvas.offsetTop + scrollAnchor.offset;
               }
             });
           }
@@ -350,8 +339,7 @@ function HomeComponent() {
           }
 
           const unscaledViewport = page.getViewport({ scale: 1 });
-          const scale =
-            (containerWidth / unscaledViewport.width) * zoomLevel;
+          const scale = (containerWidth / unscaledViewport.width) * zoomLevel;
           const viewport = page.getViewport({ scale });
           const cssWidth = Math.floor(viewport.width);
           const cssHeight = Math.floor(viewport.height);
@@ -374,10 +362,7 @@ function HomeComponent() {
           offscreenContext.fillStyle = `rgb(${themeBackground.r}, ${themeBackground.g}, ${themeBackground.b})`;
           offscreenContext.fillRect(0, 0, offscreen.width, offscreen.height);
 
-          const transform =
-            renderScale !== 1
-              ? [renderScale, 0, 0, renderScale, 0, 0]
-              : undefined;
+          const transform = renderScale !== 1 ? [renderScale, 0, 0, renderScale, 0, 0] : undefined;
 
           await page.render({
             canvasContext: offscreenContext,
@@ -385,12 +370,7 @@ function HomeComponent() {
             transform,
           }).promise;
 
-          const imageData = offscreenContext.getImageData(
-            0,
-            0,
-            offscreen.width,
-            offscreen.height,
-          );
+          const imageData = offscreenContext.getImageData(0, 0, offscreen.width, offscreen.height);
           const { data } = imageData;
           const fg = themeForeground;
           const bg = themeBackground;
@@ -449,7 +429,7 @@ function HomeComponent() {
 
             try {
               await renderPage(nextPage);
-            } catch (error) {
+            } catch {
               if (!cancelled) {
                 setPdfError("Unable to load the PDF.");
                 setPdfLoading(false);
@@ -509,7 +489,7 @@ function HomeComponent() {
         container
           ?.querySelectorAll("canvas[data-page]")
           .forEach((canvas) => observer?.observe(canvas));
-      } catch (error) {
+      } catch {
         if (!cancelled) {
           setPdfError("Unable to load the PDF.");
           setPdfLoading(false);
@@ -550,9 +530,7 @@ function HomeComponent() {
   };
 
   const renderTocItems = (items: TocItem[], depth = 0) => {
-    const listClassName = `${depth === 0 ? "space-y-3" : "space-y-1"} ${
-      depth > 0 ? "pl-4" : ""
-    }`;
+    const listClassName = `${depth === 0 ? "space-y-3" : "space-y-1"} ${depth > 0 ? "pl-4" : ""}`;
 
     return (
       <ul className={listClassName}>
@@ -570,20 +548,14 @@ function HomeComponent() {
               <button
                 type="button"
                 disabled={!isInteractive}
-                onClick={() =>
-                  item.page !== null ? scrollToPage(item.page) : undefined
-                }
+                onClick={() => (item.page !== null ? scrollToPage(item.page) : undefined)}
                 className={`w-full text-left leading-5 transition-colors hover:bg-accent/40 ${toneByDepth} ${
-                  isInteractive
-                    ? "hover:text-primary"
-                    : "cursor-default text-muted-foreground"
+                  isInteractive ? "hover:text-primary" : "cursor-default text-muted-foreground"
                 }`}
               >
                 {item.title}
               </button>
-              {item.items.length > 0
-                ? renderTocItems(item.items, depth + 1)
-                : null}
+              {item.items.length > 0 ? renderTocItems(item.items, depth + 1) : null}
             </li>
           );
         })}
@@ -710,9 +682,7 @@ function HomeComponent() {
 
     const [name, ...rest] = input.split(/\s+/);
     const args = rest.join(" ");
-    const definition = commandDefinitions.find(
-      (command) => command.name === name,
-    );
+    const definition = commandDefinitions.find((command) => command.name === name);
 
     if (!definition) {
       return;
@@ -762,22 +732,14 @@ function HomeComponent() {
                 <div className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
                   Contents
                 </div>
-                <ScrollArea
-                  className="flex-1"
-                  type="scroll"
-                  scrollHideDelay={600}
-                >
+                <ScrollArea className="flex-1" type="scroll" scrollHideDelay={600}>
                   <div className="px-3 py-2">
                     {tocLoading ? (
-                      <div className="text-xs text-muted-foreground">
-                        Loading...
-                      </div>
+                      <div className="text-xs text-muted-foreground">Loading...</div>
                     ) : tocItems.length > 0 ? (
                       renderTocItems(tocItems)
                     ) : (
-                      <div className="text-xs text-muted-foreground">
-                        No table of contents.
-                      </div>
+                      <div className="text-xs text-muted-foreground">No table of contents.</div>
                     )}
                   </div>
                 </ScrollArea>
@@ -790,10 +752,7 @@ function HomeComponent() {
               viewportRef={scrollRef}
             >
               <div className="relative min-h-screen w-full">
-                <div
-                  ref={viewerRef}
-                  className="pdf-viewer flex w-full flex-col items-start"
-                />
+                <div ref={viewerRef} className="pdf-viewer flex w-full flex-col items-start" />
                 {pdfLoading ? (
                   <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
                     <div className="text-primary">
@@ -801,11 +760,7 @@ function HomeComponent() {
                     </div>
                   </div>
                 ) : null}
-                {pdfError ? (
-                  <div className="mt-6 text-sm text-destructive">
-                    {pdfError}
-                  </div>
-                ) : null}
+                {pdfError ? <div className="mt-6 text-sm text-destructive">{pdfError}</div> : null}
               </div>
             </ScrollArea>
           </div>
@@ -815,11 +770,7 @@ function HomeComponent() {
       {commandOpen ? (
         <div className="fixed inset-x-0 bottom-0 z-50 px-4 pb-6">
           <div className="mx-auto w-full max-w-3xl border border-border bg-card/90 p-3 shadow-lg backdrop-blur">
-              <MentionRoot
-                trigger=":"
-                inputValue={commandValue}
-                onInputValueChange={setCommandText}
-              >
+            <MentionRoot trigger=":" inputValue={commandValue} onInputValueChange={setCommandText}>
               <form onSubmit={handleCommandSubmit}>
                 <MentionInput
                   ref={inputRef}

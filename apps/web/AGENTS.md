@@ -3,6 +3,7 @@
 This package is the web UI for the Vim-style PDF/EPUB viewer.
 
 ## UI Guidance
+
 - Keep layouts minimal and boxy.
 - Default to TokyoNight Night theme tokens.
 - Always use theme tokens (no hardcoded colors) so future themes apply seamlessly.

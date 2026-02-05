@@ -3,9 +3,7 @@ import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 
 import { cn } from "@/lib/utils";
 
-type ScrollAreaProps = React.ComponentPropsWithoutRef<
-  typeof ScrollAreaPrimitive.Root
-> & {
+type ScrollAreaProps = React.ComponentPropsWithoutRef<typeof ScrollAreaPrimitive.Root> & {
   viewportRef?: React.Ref<HTMLDivElement>;
   viewportClassName?: string;
 };

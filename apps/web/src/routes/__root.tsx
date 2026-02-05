@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 
 import appCss from "../index.css?url";
 
-export interface RouterAppContext { }
+export interface RouterAppContext {}
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({
@@ -17,9 +17,9 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
         name: "viewport",
         content: "width=device-width, initial-scale=1",
       },
-        {
-          title: "Zathura",
-        },
+      {
+        title: "Zathura",
+      },
     ],
     links: [
       {
