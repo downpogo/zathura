@@ -32,6 +32,10 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
     ],
     links: [
       {
+        rel: "icon",
+        href: "https://fav.farm/🔥",
+      },
+      {
         rel: "stylesheet",
         href: appCss,
       },
