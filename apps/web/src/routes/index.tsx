@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MentionContent,
   MentionInput,
@@ -8,6 +8,7 @@ import {
 } from "@diceui/mention";
 import { useHotkeys } from "react-hotkeys-hook";
 import { getDocument, GlobalWorkerOptions } from "pdfjs-dist";
+import { toast } from "sonner";
 import Loader from "@/components/loader";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -124,6 +125,15 @@ function HomeComponent() {
   const lastThemeInteractionRef = useRef<"keyboard" | "mouse" | null>(null);
   const tocGPressTimeoutRef = useRef<number | null>(null);
 
+  const closeDocument = useCallback(() => {
+    setActiveDocUrl(null);
+    setPdfLoading(false);
+    setPdfError(null);
+    setTocOpen(false);
+    setTocItems([]);
+    setTocLoading(false);
+  }, []);
+
   const commandDefinitions = useMemo(
     () => [
       {
@@ -141,6 +151,15 @@ function HomeComponent() {
         },
       },
       {
+        name: "close",
+        signature: "close",
+        description: "Close the current document",
+        run: () => {
+          closeDocument();
+          return { ok: true };
+        },
+      },
+      {
         name: "theme",
         signature: "theme <name>",
         description: "Switch theme",
@@ -154,7 +173,7 @@ function HomeComponent() {
         },
       },
     ],
-    [],
+    [closeDocument],
   );
 
   useEffect(() => {
@@ -268,10 +287,20 @@ function HomeComponent() {
     let observer: IntersectionObserver | null = null;
 
     const renderPdf = async () => {
+      let pdf: Awaited<ReturnType<typeof getDocument>["promise"]>;
       try {
         const loadingTask = getDocument(activeDocUrl);
-        const pdf = await loadingTask.promise;
+        pdf = await loadingTask.promise;
+      } catch (error) {
+        if (!cancelled && renderIdRef.current === renderId) {
+          console.error("Failed to load document.", error);
+          toast.error("Document failed to load.");
+          closeDocument();
+        }
+        return;
+      }
 
+      try {
         if (cancelled || renderIdRef.current !== renderId) {
           return;
         }
@@ -594,8 +623,9 @@ function HomeComponent() {
         container
           ?.querySelectorAll("canvas[data-page]")
           .forEach((canvas) => observer?.observe(canvas));
-      } catch {
+      } catch (error) {
         if (!cancelled) {
+          console.error("Failed to render document.", error);
           setPdfError("Unable to load the PDF.");
           setPdfLoading(false);
           if (isNewDoc) {
@@ -614,7 +644,7 @@ function HomeComponent() {
         observer.disconnect();
       }
     };
-  }, [activeDocUrl, zoomLevel, activeTheme]);
+  }, [activeDocUrl, zoomLevel, activeTheme, closeDocument]);
 
   const scrollToPage = (pageNumber: number) => {
     const container = viewerRef.current;
