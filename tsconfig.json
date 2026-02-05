@@ -1,0 +1,3 @@
+{
+  "extends": "@zathura/config/tsconfig.base.json"
+}
