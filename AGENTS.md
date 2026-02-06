@@ -1,6 +1,4 @@
-# AGENTS
-
-This monorepo builds a Vim-style PDF/EPUB viewer (web-first) with a minimal, boxy UI and TokyoNight Storm as the default theme.
+Zathura is a document viewer. It displays PDF and EPUB. Uses Vim-style keybindings to navigate the document.
 
 ## Tooling
 
@@ -8,8 +6,8 @@ This monorepo builds a Vim-style PDF/EPUB viewer (web-first) with a minimal, box
 - Dev: `pnpm dev` or `pnpm dev:web`
 - Build: `pnpm build`
 - Typecheck: `pnpm check-types`
+- Lint and format: `pnpm check`
 
 ## Scope Hints
 
-- Web app lives in `apps/web`.
-- Keep UI minimal and boxy; avoid extra chrome or placeholders.
+- Web app lives in `apps/web`
