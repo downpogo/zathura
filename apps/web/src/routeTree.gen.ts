@@ -8,80 +8,80 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiProxyDocumentRouteImport } from './routes/api/proxy-document'
+import { Route as rootRouteImport } from "./routes/__root";
+import { Route as IndexRouteImport } from "./routes/index";
+import { Route as ApiProxyDocumentRouteImport } from "./routes/api/proxy-document";
 
 const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+  id: "/",
+  path: "/",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const ApiProxyDocumentRoute = ApiProxyDocumentRouteImport.update({
-  id: '/api/proxy-document',
-  path: '/api/proxy-document',
+  id: "/api/proxy-document",
+  path: "/api/proxy-document",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/api/proxy-document': typeof ApiProxyDocumentRoute
+  "/": typeof IndexRoute;
+  "/api/proxy-document": typeof ApiProxyDocumentRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/api/proxy-document': typeof ApiProxyDocumentRoute
+  "/": typeof IndexRoute;
+  "/api/proxy-document": typeof ApiProxyDocumentRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/api/proxy-document': typeof ApiProxyDocumentRoute
+  __root__: typeof rootRouteImport;
+  "/": typeof IndexRoute;
+  "/api/proxy-document": typeof ApiProxyDocumentRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/api/proxy-document'
-  fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/api/proxy-document'
-  id: '__root__' | '/' | '/api/proxy-document'
-  fileRoutesById: FileRoutesById
+  fileRoutesByFullPath: FileRoutesByFullPath;
+  fullPaths: "/" | "/api/proxy-document";
+  fileRoutesByTo: FileRoutesByTo;
+  to: "/" | "/api/proxy-document";
+  id: "__root__" | "/" | "/api/proxy-document";
+  fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  ApiProxyDocumentRoute: typeof ApiProxyDocumentRoute
+  IndexRoute: typeof IndexRoute;
+  ApiProxyDocumentRoute: typeof ApiProxyDocumentRoute;
 }
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/proxy-document': {
-      id: '/api/proxy-document'
-      path: '/api/proxy-document'
-      fullPath: '/api/proxy-document'
-      preLoaderRoute: typeof ApiProxyDocumentRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+    "/": {
+      id: "/";
+      path: "/";
+      fullPath: "/";
+      preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/api/proxy-document": {
+      id: "/api/proxy-document";
+      path: "/api/proxy-document";
+      fullPath: "/api/proxy-document";
+      preLoaderRoute: typeof ApiProxyDocumentRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ApiProxyDocumentRoute: ApiProxyDocumentRoute,
-}
+};
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();
 
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
+import type { getRouter } from "./router.tsx";
+import type { startInstance } from "./start.ts";
+declare module "@tanstack/react-start" {
   interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+    ssr: true;
+    router: Awaited<ReturnType<typeof getRouter>>;
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>;
   }
 }

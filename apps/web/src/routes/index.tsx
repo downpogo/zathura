@@ -1835,7 +1835,9 @@ function HomeComponent() {
               scrollHideDelay={600}
               viewportRef={scrollRef}
             >
-              <div className={cn("relative min-h-screen w-full", statusBarVisible ? "pb-12" : null)}>
+              <div
+                className={cn("relative min-h-screen w-full", statusBarVisible ? "pb-12" : null)}
+              >
                 <div ref={viewerRef} className="pdf-viewer flex w-full flex-col items-start" />
                 {pdfLoading ? (
                   <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">

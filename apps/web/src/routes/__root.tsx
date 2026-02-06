@@ -13,7 +13,7 @@ import {
 
 import appCss from "../index.css?url";
 
-export interface RouterAppContext { }
+export interface RouterAppContext {}
 
 export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({
@@ -108,7 +108,8 @@ function RootDocument() {
     }
   })();
 
-  const initialTheme = (typeof window === "undefined" ? serverTheme : getStoredTheme()) ?? DEFAULT_THEME;
+  const initialTheme =
+    (typeof window === "undefined" ? serverTheme : getStoredTheme()) ?? DEFAULT_THEME;
 
   return (
     <html lang="en" className="dark" data-theme={initialTheme} suppressHydrationWarning>

@@ -1,6 +1,11 @@
 import { createMiddleware, createStart } from "@tanstack/react-start";
 
-import { DEFAULT_THEME, THEME_COOKIE_KEY, resolveTheme, getCookieValueFromHeader } from "@/lib/theme";
+import {
+  DEFAULT_THEME,
+  THEME_COOKIE_KEY,
+  resolveTheme,
+  getCookieValueFromHeader,
+} from "@/lib/theme";
 
 const themeRequestMiddleware = createMiddleware().server(({ request, next }) => {
   const cookieHeader = request.headers.get("cookie");

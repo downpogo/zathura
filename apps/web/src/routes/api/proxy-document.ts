@@ -19,12 +19,7 @@ const corsBaseHeaders = {
 
 const isBlockedHostname = (hostname: string) => {
   const lower = hostname.toLowerCase();
-  return (
-    lower === "localhost" ||
-    lower === "127.0.0.1" ||
-    lower === "0.0.0.0" ||
-    lower === "::1"
-  );
+  return lower === "localhost" || lower === "127.0.0.1" || lower === "0.0.0.0" || lower === "::1";
 };
 
 const pickHeader = (headers: Headers, name: string) => {
@@ -61,10 +56,7 @@ export const Route = createFileRoute("/api/proxy-document")({
   },
 });
 
-async function handleProxy(
-  request: Request,
-  opts: { includeBody: boolean },
-): Promise<Response> {
+async function handleProxy(request: Request, opts: { includeBody: boolean }): Promise<Response> {
   const requestUrl = new URL(request.url);
   const target = requestUrl.searchParams.get("url");
 
