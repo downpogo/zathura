@@ -1,0 +1,13 @@
+/* Overrides for the vendored pdf_viewer.css, which is unlayered and loads
+   before this file. Shell-drawn chrome uses our tokens; PDF page artwork keeps
+   the document's own colors. */
+
+:root { color-scheme: var(--theme-color-scheme); }
+
+.pdfViewer .page { box-shadow: var(--shadow-control); }
+
+.pdfViewer .textLayer ::selection,
+.pdfViewer .textLayer br::selection {
+  color: var(--color-on-selection);
+  background-color: var(--color-selection);
+}

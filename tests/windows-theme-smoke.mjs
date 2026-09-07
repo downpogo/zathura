@@ -1,0 +1,169 @@
+import assert from 'node:assert/strict';
+import { spawn, spawnSync } from 'node:child_process';
+import { access, mkdtemp, rm } from 'node:fs/promises';
+import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
+import test from 'node:test';
+import { chromium } from 'playwright-core';
+
+test('Windows release WebView2: OS theme, live switching, tokens and accessibility', { timeout: 90_000 }, async () => {
+  assert.equal(process.platform, 'win32', 'Run this explicitly on native Windows, not a browser preview.');
+  const executable = fileURLToPath(new URL('../src-tauri/target/release/local-pdf-reader.exe', import.meta.url));
+  await access(executable);
+  const profile = await mkdtemp(join(tmpdir(), 'zathura-theme-'));
+  const server = createServer();
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const port = server.address().port;
+  await new Promise(resolve => server.close(resolve));
+  // Only this test child has an isolated profile and loopback debugging endpoint.
+  const app = spawn(executable, [], {
+    env: {
+      ...process.env,
+      WEBVIEW2_USER_DATA_FOLDER: profile,
+      WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-address=127.0.0.1 --remote-debugging-port=${port}`,
+    },
+    stdio: 'ignore',
+  });
+  let startupError;
+  app.on('error', error => { startupError = error; });
+  let browser;
+  try {
+    const deadline = Date.now() + 30_000;
+    let endpoint;
+    while (Date.now() < deadline) {
+      if (startupError) throw startupError;
+      assert.equal(app.exitCode, null, 'App exited during startup');
+      try {
+        const response = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(1000) });
+        endpoint = (await response.json()).webSocketDebuggerUrl;
+        if (endpoint) break;
+      } catch { /* WebView2 has not opened its test endpoint yet. */ }
+      await delay(250);
+    }
+    assert.ok(endpoint, 'WebView2 test endpoint did not start');
+    browser = await chromium.connectOverCDP(endpoint);
+    const context = browser.contexts()[0];
+    let page;
+    while (Date.now() < deadline) {
+      page = context.pages().find(candidate => candidate.url().startsWith('http://tauri.localhost/'));
+      if (page) break;
+      await delay(100);
+    }
+    assert.ok(page, 'Expected the actual bundled Tauri page, not a browser preview');
+    const pageErrors = [];
+    page.on('pageerror', error => pageErrors.push(error.message));
+    await page.locator('#open-files').waitFor();
+    await page.getByText('No document open.', { exact: true }).waitFor();
+    const initial = await page.evaluate(() => ({
+      dark: matchMedia('(prefers-color-scheme: dark)').matches,
+      scheme: getComputedStyle(document.documentElement).colorScheme,
+    }));
+    assert.equal(initial.scheme, initial.dark ? 'dark' : 'light', 'Startup follows actual OS preference');
+
+    for (const theme of ['light', 'dark', 'light']) {
+      await page.emulateMedia({ colorScheme: theme, forcedColors: 'none', reducedMotion: 'reduce' });
+      await page.waitForFunction(expected => {
+        const root = getComputedStyle(document.documentElement);
+        const hex = root.getPropertyValue('--color-control').trim();
+        const rgb = `rgb(${[1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16)).join(', ')})`;
+        return root.colorScheme === expected && getComputedStyle(document.querySelector('#open-files')).backgroundColor === rgb;
+      }, theme);
+      const state = await page.evaluate(() => {
+        const root = getComputedStyle(document.documentElement);
+        const button = getComputedStyle(document.querySelector('#open-files'));
+        const status = getComputedStyle(document.querySelector('footer'));
+        const rgb = token => {
+          const hex = root.getPropertyValue(token).trim();
+          return `rgb(${[1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16)).join(', ')})`;
+        };
+        return {
+          scheme: root.colorScheme,
+          background: root.backgroundColor,
+          canvas: rgb('--color-canvas'),
+          text: root.color,
+          textToken: rgb('--color-text'),
+          buttonBackground: button.backgroundColor,
+          buttonToken: rgb('--color-control'),
+          muted: status.color,
+          mutedToken: rgb('--color-text-muted'),
+          duration: button.transitionDuration,
+        };
+      });
+      assert.equal(state.scheme, theme);
+      assert.equal(state.background, state.canvas);
+      assert.equal(state.text, state.textToken);
+      assert.equal(state.buttonBackground, state.buttonToken);
+      assert.equal(state.muted, state.mutedToken);
+      assert.equal(state.duration, '0s', 'Reduced motion removes the transition');
+
+      const hovered = page.waitForFunction(() => {
+        const button = document.querySelector('#open-files');
+        if (!button.matches(':hover')) return false;
+        const hex = getComputedStyle(document.documentElement).getPropertyValue('--color-control-hover').trim();
+        const expected = `rgb(${[1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16)).join(', ')})`;
+        return getComputedStyle(button).backgroundColor === expected;
+      }, { timeout: 5000, polling: 250 }).catch(() => null);
+      await page.locator('#open-files').hover();
+      assert.ok(await hovered, `${theme} hover resolves through its token`);
+      await page.mouse.move(0, 0);
+    }
+
+    const override = await page.evaluate(() => {
+      const root = document.documentElement;
+      root.style.setProperty('--radius-small', '13px');
+      root.style.setProperty('--space-3', '21px');
+      root.style.setProperty('--font-family-ui', 'monospace');
+      const button = getComputedStyle(document.querySelector('#open-files'));
+      const result = { radius: button.borderRadius, padding: button.paddingLeft, font: button.fontFamily };
+      for (const token of ['--radius-small', '--space-3', '--font-family-ui']) root.style.removeProperty(token);
+      return result;
+    });
+    assert.deepEqual(override, { radius: '13px', padding: '21px', font: 'monospace' }, 'Shared tokens reach actual controls');
+
+    await page.setViewportSize({ width: 360, height: 320 });
+    await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'No horizontal overflow at a small viewport and enlarged text');
+    await page.evaluate(() => { document.documentElement.style.removeProperty('font-size'); });
+    const controls = await page.evaluate(() => ({
+      open: document.querySelector('#open-files').getBoundingClientRect().toJSON(),
+      status: document.querySelector('footer').getBoundingClientRect().toJSON(),
+      width: innerWidth,
+      height: innerHeight,
+    }));
+    for (const bounds of [controls.open, controls.status]) {
+      // WebView2's display scaling can round layout bounds by a fraction of a CSS pixel.
+      assert.ok(bounds.top >= -0.5 && bounds.bottom <= controls.height + 0.5 && bounds.left >= -0.5 && bounds.right <= controls.width + 0.5,
+        `Critical controls remain visible at 360x320: ${JSON.stringify(controls)}`);
+    }
+    await page.locator('#open-files').focus();
+    assert.equal(await page.locator('#open-files').evaluate(button => {
+      const style = getComputedStyle(button);
+      return button.matches(':focus-visible') && style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) >= 2;
+    }), true, 'Visible focus ring');
+
+    await page.emulateMedia({ forcedColors: 'active' });
+    assert.equal(await page.evaluate(() => {
+      const root = getComputedStyle(document.documentElement);
+      const button = getComputedStyle(document.querySelector('#open-files'));
+      return matchMedia('(forced-colors: active)').matches && root.forcedColorAdjust === 'auto'
+        && root.getPropertyValue('--color-canvas').trim() === 'Canvas' && button.boxShadow === 'none';
+    }), true, 'Windows Contrast Themes retain system colors');
+    assert.deepEqual(pageErrors, []);
+    console.log(`Verified WebView2 ${browser.version()}; startup ${initial.scheme}; live light/dark/light, tokens, focus, 360x320, enlarged text, reduced motion and forced colors.`);
+  } finally {
+    await browser?.close();
+    if (app.pid && app.exitCode === null) {
+      spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+        `$p = Get-Process -Id ${app.pid} -ErrorAction SilentlyContinue; if ($p) { $p.CloseMainWindow() | Out-Null; $p.WaitForExit(5000) | Out-Null }`],
+      { stdio: 'ignore', timeout: 10_000 });
+      if (app.exitCode === null) app.kill();
+    }
+    await rm(profile, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 });
+  }
+});

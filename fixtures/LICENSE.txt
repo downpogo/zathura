@@ -1,0 +1,13 @@
+SPDX-License-Identifier: CC0-1.0
+
+The original synthetic PDF content, bitmap images, and CoreFixtureCJK glyph
+designs in this directory were created for this project, not copied from books,
+documents, images, or third-party fonts. To the extent possible under law, the
+contributors waive all copyright and related or neighboring rights in these
+fixture assets under CC0 1.0 Universal. They are provided without warranty.
+
+CC0 1.0 Universal legal terms: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+
+The development tools pypdf (BSD-3-Clause) and fonttools (MIT) are installed
+separately, not redistributed here or bundled into the application. Their
+licenses do not replace this dedication of the original generated assets.

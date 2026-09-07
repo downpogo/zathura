@@ -1,0 +1,36 @@
+{
+  "name": "local-pdf-reader",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=24.14.0 <25"
+  },
+  "scripts": {
+    "dev": "pnpm prepare:pdf-assets && vite --host 127.0.0.1 --port 1420 --strictPort",
+    "prepare:pdf-assets": "node scripts/prepare-pdf-assets.mjs",
+    "typecheck": "tsc --noEmit",
+    "build": "pnpm prepare:pdf-assets && pnpm typecheck && vite build",
+    "test": "pnpm prepare:pdf-assets && node --test tests/*.test.mjs",
+    "test:pdf:windows": "node --test tests/windows-pdf-smoke.mjs",
+    "test:theme:windows": "node --test tests/windows-theme-smoke.mjs",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.4",
+    "playwright-core": "1.63.0",
+    "postcss": "8.5.28",
+    "typescript": "5.9.3",
+    "vite": "7.3.1"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.11.1",
+    "pdfjs-dist": "6.3.289"
+  }
+}

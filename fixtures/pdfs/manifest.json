@@ -1,0 +1,215 @@
+{
+  "schemaVersion": 1,
+  "generator": "scripts/generate-fixtures.py",
+  "tools": {
+    "pypdf": "6.1.1",
+    "fonttools": "4.59.2"
+  },
+  "fixtures": [
+    {
+      "file": "basic.pdf",
+      "bytes": 756,
+      "sha256": "8ee99c6bd79e647e7d5dbe7c916de71d8aa2adc62da20c5a966ff096db198e6a",
+      "license": "CC0-1.0",
+      "provenance": "Original synthetic data; scripts/generate-fixtures.py",
+      "expected": {
+        "pages": 1,
+        "outline": [],
+        "text": "CORE-02 basic text",
+        "behavior": "Selectable text; no table of contents."
+      }
+    },
+    {
+      "file": "navigation.pdf",
+      "bytes": 3619,
+      "sha256": "ff189328d2add877731d166efa038a4999c0935d0124df8bf155eee383fcae30",
+      "license": "CC0-1.0",
+      "provenance": "Original synthetic data; scripts/generate-fixtures.py",
+      "expected": {
+        "pages": 4,
+        "namedDestinations": {
+          "chapter-three": {
+            "page": 3,
+            "fit": "FitH",
+            "top": 740
+          }
+        },
+        "directOutlineFit": "Fit",
+        "outline": [
+          {
+            "title": "Chapter 1 (direct)",
+            "page": 1,
+            "children": [
+              {
+                "title": "Section 1.1 (named)",
+                "name": "chapter-three",
+                "page": 3
+              }
+            ]
+          },
+          {
+            "title": "Group without destination",
+            "children": [
+              {
+                "title": "Final page (direct)",
+                "page": 4
+              }
+            ]
+          },
+          {
+            "title": "Missing named target",
+            "name": "does-not-exist",
+            "page": null
+          },
+          {
+            "title": "<b>literal outline title</b>",
+            "page": 2
+          }
+        ],
+        "links": [
+          {
+            "page": 2,
+            "fit": "XYZ",
+            "left": 40,
+            "top": 700,
+            "zoom": 1.25
+          },
+          {
+            "name": "chapter-three",
+            "page": 3
+          },
+          {
+            "name": "does-not-exist",
+            "page": null
+          }
+        ],
+        "behavior": "Nested tree; destinationless parent expands; missing target is nonfatal; HTML-like title is literal text."
+      }
+    },
+    {
+      "file": "page-sizes.pdf",
+      "bytes": 1436,
+      "sha256": "43b9e62fa7c98081c1d3df8b0d78b7d240cb6a77f386dce130868283547d4025",
+      "license": "CC0-1.0",
+      "provenance": "Original synthetic data; scripts/generate-fixtures.py",
+      "expected": {
+        "pages": 3,
+        "outline": [],
+        "mediaBoxes": [
+          [
+            612,
+            792
+          ],
+          [
+            842,
+            595
+          ],
+          [
+            300,
+            300
+          ]
+        ],
+        "rotations": [
+          0,
+          0,
+          90
+        ],
+        "behavior": "Letter portrait, A4-like landscape, square rotated 90 degrees; fit/zoom follows each page."
+      }
+    },
+    {
+      "file": "cjk-embedded.pdf",
+      "bytes": 3126,
+      "sha256": "56bd46ae449917beef706e4ed28a5b434b921debed78405a3c0cced961b7a31e",
+      "license": "CC0-1.0",
+      "provenance": "Original synthetic data; scripts/generate-fixtures.py",
+      "expected": {
+        "pages": 1,
+        "outline": [],
+        "text": "\u65e5\u672c\u4e2d\u6587",
+        "embeddedFont": "CoreFixtureCJK",
+        "glyphs": 4,
+        "behavior": "Four original CJK glyphs (Japanese/Chinese shared characters), embedded TrueType and ToUnicode; no system font needed. Not full CJK coverage."
+      }
+    },
+    {
+      "file": "scan.pdf",
+      "bytes": 1204,
+      "sha256": "084f3466c7fac346206271afe22b2d1dec57d0eaa0d6413e02d2296b880d8247",
+      "license": "CC0-1.0",
+      "provenance": "Original synthetic data; scripts/generate-fixtures.py",
+      "expected": {
+        "pages": 1,
+        "outline": [],
+        "text": "",
+        "imagesPerPage": 1,
+        "imagePixels": [
+          256,
+          256
+        ],
+        "behavior": "Synthetic image-only scan reads SCAN 01; selection yields no text; no OCR."
+      }
+    },
+    {
+      "file": "encrypted.pdf",
+      "bytes": 1170,
+      "sha256": "5c8f90e386fa8e7f5d7286960311ed42a87a8215a261c91fc729014f49d2bae0",
+      "license": "CC0-1.0",
+      "provenance": "Original synthetic data; scripts/generate-fixtures.py",
+      "expected": {
+        "pages": 1,
+        "outline": [],
+        "text": "Encrypted synthetic test document",
+        "passwords": {
+          "user": "core02-user",
+          "owner": "core02-owner",
+          "wrong": "wrong-password"
+        },
+        "encryption": "RC4-128",
+        "behavior": "Prompt without password; wrong password retries; user/owner opens. Cancel/close must preserve other sessions (CORE-04/05). RC4 is test coverage, not security advice."
+      }
+    },
+    {
+      "file": "corrupt.pdf",
+      "bytes": 65,
+      "sha256": "b8010f7f8be245aadde23d3320092ce66288cb4edb824e856f67d45a0e3e190d",
+      "license": "CC0-1.0",
+      "provenance": "Original synthetic data; scripts/generate-fixtures.py",
+      "expected": {
+        "pages": null,
+        "behavior": "Parser rejects; reader reports recoverable error and can open basic.pdf next."
+      }
+    },
+    {
+      "file": "long-text.pdf",
+      "bytes": 841086,
+      "sha256": "4d21a2a8e96dee01b1ac737cccc9c74d9a8de201268a33d46c3df138d3cdce9d",
+      "license": "CC0-1.0",
+      "provenance": "Original synthetic data; scripts/generate-fixtures.py",
+      "expected": {
+        "pages": 300,
+        "outline": [],
+        "behavior": "Manual performance: first page, jump 150/300, rapid scroll, zoom, repeated open/close; bounded rendering resources. Not a measured performance budget."
+      }
+    },
+    {
+      "file": "image-heavy.pdf",
+      "bytes": 9446080,
+      "sha256": "debf13e55b0c192da43b880789e0269a43f4b34307517fdcbd7c44dba6b37936",
+      "license": "CC0-1.0",
+      "provenance": "Original synthetic data; scripts/generate-fixtures.py",
+      "expected": {
+        "pages": 12,
+        "outline": [],
+        "text": "",
+        "imagesPerPage": 1,
+        "imagePixels": [
+          512,
+          512
+        ],
+        "decodedImageBytes": 9437184,
+        "behavior": "Distinct deterministic RGB noise pages; manual byte-transport, decode/cache and open/close checks. Synthetic stress, not a representative photographed book."
+      }
+    }
+  ]
+}

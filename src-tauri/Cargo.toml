@@ -1,0 +1,16 @@
+[package]
+name = "local-pdf-reader"
+version = "0.1.0"
+description = "A local keyboard-first PDF reader"
+edition = "2021"
+rust-version = "1.93"
+
+[build-dependencies]
+tauri-build = { version = "=2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "=2.11.5", features = [] }
+rfd = "=0.15.4"
+serde = { version = "1", features = ["derive"] }
+uuid = { version = "1", features = ["v4"] }
+same-file = "=1.0.6"

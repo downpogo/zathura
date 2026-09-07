@@ -1,0 +1,127 @@
+/* Raw design values live here. Components consume semantic custom properties. */
+@layer tokens {
+  :root {
+    --font-family-ui: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-family-mono: ui-monospace, "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+    --font-size-caption: 0.75rem;
+    --font-size-small: 0.875rem;
+    --font-size-body: 1rem;
+    --font-size-heading: 1.25rem;
+    --font-weight-regular: 400;
+    --font-weight-medium: 500;
+    --font-weight-strong: 600;
+    --line-height-tight: 1.25;
+    --line-height-body: 1.5;
+    --letter-spacing-normal: 0;
+    --letter-spacing-heading: -0.025em;
+
+    --space-0: 0;
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-5: 1.25rem;
+    --space-6: 1.5rem;
+    --space-8: 2rem;
+    --space-12: 3rem;
+
+    --size-viewport-block: 100dvh;
+    --size-content-inline: 32rem;
+    --size-tab-label: 16rem;
+    --size-fluid: 100%;
+    --size-dialog-inline: min(var(--size-content-inline), calc(var(--size-fluid) - var(--space-8)));
+    --size-control-min: 2.25rem;
+    --size-icon: 1.125rem;
+    --radius-small: 0.25rem;
+    --radius-medium: 0.5rem;
+    --radius-large: 0.75rem;
+    --radius-pill: 999rem;
+    --border-width: 1px;
+    --border-width-focus: 2px;
+    --focus-offset: 3px;
+    --shadow-offset: 0 1px 2px;
+    --shadow-control: var(--shadow-offset) var(--color-shadow);
+    --duration-fast: 120ms;
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+    --layer-base: 0;
+    --layer-popover: 10;
+    --layer-dialog: 20;
+
+    --theme-color-scheme: light;
+    --color-canvas: #f6f5f1;
+    --color-surface: #fdfcf8;
+    --color-text: #242821;
+    --color-text-muted: #5b6255;
+    --color-border: #d0d4c9;
+    --color-border-control: #72796b;
+    --color-control: #eeeee8;
+    --color-control-hover: #e1e7d8;
+    --color-control-active: #d3dfc4;
+    --color-control-disabled: #e9eae4;
+    --color-text-disabled: #646b5e;
+    --color-accent: #496332;
+    --color-focus: #496332;
+    --color-selection: #d3e4bf;
+    --color-on-selection: #203015;
+    --color-danger: #a32d28;
+    --color-shadow: #1920131f;
+    --color-overlay: #19201366;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --theme-color-scheme: dark;
+      --color-canvas: #232522;
+      --color-surface: #292d26;
+      --color-text: #e3e5dd;
+      --color-text-muted: #b2b7aa;
+      --color-border: #454b40;
+      --color-border-control: #a5ae9a;
+      --color-control: #30372b;
+      --color-control-hover: #3c4734;
+      --color-control-active: #48583b;
+      --color-control-disabled: #2b3027;
+      --color-text-disabled: #a0a795;
+      --color-accent: #b8d58f;
+      --color-focus: #b8d58f;
+      --color-selection: #435a31;
+      --color-on-selection: #edf5df;
+      --color-danger: #ffaba5;
+      --color-shadow: #00000066;
+      --color-overlay: #00000099;
+    }
+  }
+
+  @media (pointer: coarse) {
+    :root { --size-control-min: 2.75rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root { --duration-fast: 0ms; }
+  }
+
+  /* Let Windows Contrast Themes supply their own palette. Do not disable forced colors. */
+  @media (forced-colors: active) {
+    :root {
+      --color-canvas: Canvas;
+      --color-surface: Canvas;
+      --color-text: CanvasText;
+      --color-text-muted: CanvasText;
+      --color-border: CanvasText;
+      --color-border-control: ButtonText;
+      --color-control: ButtonFace;
+      --color-control-hover: ButtonFace;
+      --color-control-active: ButtonFace;
+      --color-control-disabled: ButtonFace;
+      --color-text-disabled: GrayText;
+      --color-accent: LinkText;
+      --color-focus: Highlight;
+      --color-selection: Highlight;
+      --color-on-selection: HighlightText;
+      --color-danger: CanvasText;
+      --color-shadow: transparent;
+      --color-overlay: Canvas;
+      --shadow-control: none;
+    }
+  }
+}

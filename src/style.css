@@ -1,0 +1,242 @@
+@layer tokens, base, components, app;
+@import './tokens.css';
+
+@layer base {
+  :root {
+    font-family: var(--font-family-ui);
+    font-size: var(--font-size-body);
+    font-weight: var(--font-weight-regular);
+    line-height: var(--line-height-body);
+    letter-spacing: var(--letter-spacing-normal);
+    color: var(--color-text);
+    background-color: var(--color-canvas);
+    color-scheme: var(--theme-color-scheme);
+    font-synthesis: none;
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+
+  body {
+    margin: var(--space-0);
+    min-block-size: var(--size-viewport-block);
+    display: flex;
+    flex-direction: column;
+  }
+
+  h1, h2, p { margin: var(--space-0); }
+
+  h1, h2 {
+    font-size: var(--font-size-heading);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--line-height-tight);
+    letter-spacing: var(--letter-spacing-heading);
+  }
+
+  p { color: var(--color-text-muted); }
+
+  button, input, select, textarea { font: inherit; }
+
+  code, kbd { font-family: var(--font-family-mono); }
+
+  ::selection {
+    color: var(--color-on-selection);
+    background-color: var(--color-selection);
+  }
+
+  :focus-visible {
+    outline: var(--border-width-focus) solid var(--color-focus);
+    outline-offset: var(--focus-offset);
+  }
+}
+
+@layer components {
+  .input {
+    min-block-size: var(--size-control-min);
+    min-inline-size: var(--space-0);
+    padding: var(--space-2) var(--space-3);
+    border: var(--border-width) solid var(--color-border-control);
+    border-radius: var(--radius-small);
+    color: var(--color-text);
+    background-color: var(--color-control);
+  }
+
+  dialog {
+    inline-size: var(--size-dialog-inline);
+    max-inline-size: var(--size-dialog-inline);
+    padding: var(--space-6);
+    border: var(--border-width) solid var(--color-border-control);
+    border-radius: var(--radius-medium);
+    color: var(--color-text);
+    background-color: var(--color-surface);
+    box-shadow: var(--shadow-control);
+  }
+  dialog::backdrop { background-color: var(--color-overlay); }
+  .dialog-content { display: grid; gap: var(--space-3); }
+  .dialog-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: end; }
+  .button {
+    min-block-size: var(--size-control-min);
+    padding: var(--space-1) var(--space-3);
+    border: var(--border-width) solid var(--color-border-control);
+    border-radius: var(--radius-small);
+    color: var(--color-text);
+    background-color: var(--color-control);
+    box-shadow: var(--shadow-control);
+    font-size: var(--font-size-small);
+    font-weight: var(--font-weight-medium);
+    line-height: var(--line-height-tight);
+    transition: background-color var(--duration-fast) var(--ease-standard);
+  }
+
+  .button:hover:not(:disabled) { background-color: var(--color-control-hover); }
+  .button:active:not(:disabled) { background-color: var(--color-control-active); }
+  .button:disabled {
+    color: var(--color-text-disabled);
+    background-color: var(--color-control-disabled);
+    box-shadow: none;
+    cursor: not-allowed;
+  }
+}
+
+@layer app {
+  header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    border-block-end: var(--border-width) solid var(--color-border);
+    background-color: var(--color-surface);
+  }
+
+  #tab-strip {
+    display: flex;
+    align-items: stretch;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-4);
+    border-block-end: var(--border-width) solid var(--color-border);
+    background-color: var(--color-surface);
+    overflow-x: auto;
+  }
+
+  .tab {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    min-block-size: var(--size-control-min);
+    padding: var(--space-1) var(--space-2);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-small);
+    color: var(--color-text-muted);
+    background-color: var(--color-control);
+    font-size: var(--font-size-small);
+  }
+
+  .tab.active {
+    color: var(--color-text);
+    border-color: var(--color-border-control);
+    background-color: var(--color-control-active);
+  }
+
+  .tab-label {
+    max-inline-size: var(--size-tab-label);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tab-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: var(--size-icon);
+    min-inline-size: var(--size-icon);
+    padding: var(--space-0);
+    border: none;
+    border-radius: var(--radius-small);
+    color: inherit;
+    background-color: transparent;
+  }
+
+  .tab-close:hover { background-color: var(--color-control-hover); }
+
+  main {
+    position: relative;
+    flex: 1;
+    min-inline-size: var(--space-0);
+    display: grid;
+    place-items: center;
+    padding: var(--space-6);
+  }
+
+  /* Document mode replaces the centered empty state; each session view is a
+     scroll container. Inactive views stay laid out (visibility, not display)
+     so scroll position and rendered pages persist while nothing new renders. */
+  main:has(#reader:not([hidden])) {
+    display: block;
+    padding: var(--space-0);
+  }
+
+  #reader {
+    position: absolute;
+    inset: var(--space-0);
+    overflow: hidden;
+    background-color: var(--color-canvas);
+  }
+
+  .session-view {
+    position: absolute;
+    inset: var(--space-0);
+    overflow: auto;
+    /* Overlay-free scrolling keeps the viewport width stable: fit-width can
+       span the full client width without a late scrollbar shrinking it and
+       causing horizontal overflow. Keys and wheel still scroll. */
+    scrollbar-width: none;
+  }
+
+  .session-view::-webkit-scrollbar { display: none; }
+
+  .session-view:not(.active-view) {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .empty-reader {
+    min-inline-size: var(--space-0);
+    max-inline-size: var(--size-content-inline);
+    display: grid;
+    gap: var(--space-3);
+    overflow-wrap: anywhere;
+  }
+
+  #command-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border-block-start: var(--border-width) solid var(--color-border);
+    background-color: var(--color-surface);
+    font-size: var(--font-size-small);
+  }
+
+  #command-bar .input { flex: 1; }
+
+  #file-results {
+    margin: var(--space-2) var(--space-4);
+    padding-inline-start: var(--space-5);
+    display: grid;
+    gap: var(--space-2);
+    font-size: var(--font-size-small);
+  }
+
+  #file-results:empty { display: none; }
+
+  footer {
+    padding: var(--space-2) var(--space-4);
+    border-block-start: var(--border-width) solid var(--color-border);
+    background-color: var(--color-surface);
+    font-size: var(--font-size-caption);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+  }
+}
+

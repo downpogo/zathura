@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="stylesheet" href="/src/style.css" />
+    <title>Local PDF Reader</title>
+  </head>
+  <body>
+    <header>
+      <button id="open-files" class="button" type="button">Open PDFs</button>
+    </header>
+    <nav id="tab-strip" role="tablist" aria-label="Open documents" hidden></nav>
+    <main aria-labelledby="reader-title">
+      <section id="empty-reader" class="empty-reader">
+        <h1 id="reader-title">Local PDF Reader</h1>
+        <p>No document open.</p>
+      </section>
+      <div id="reader" aria-label="PDF document" hidden></div>
+    </main>
+    <div id="command-bar" hidden>
+      <label for="command-input">Command</label>
+      <span aria-hidden="true">:</span>
+      <input id="command-input" class="input" type="text" autocomplete="off" spellcheck="false"
+             aria-label="Reader command (for example q to close this document)" />
+    </div>
+    <ul id="file-results" aria-label="File opening feedback" hidden></ul>
+    <footer role="status">Open local PDFs with Ctrl+O (Cmd+O on macOS).</footer>
+    <dialog id="password-dialog" aria-labelledby="password-title" aria-describedby="password-message">
+      <form id="password-form" method="dialog" class="dialog-content">
+        <h2 id="password-title">Password required</h2>
+        <p id="password-message">Enter this PDF's password.</p>
+        <label for="pdf-password">PDF password</label>
+        <input id="pdf-password" class="input" type="password" autocomplete="off" spellcheck="false" />
+        <div class="dialog-actions">
+          <button class="button" type="submit">Unlock PDF</button>
+          <button id="cancel-password" class="button" type="button">Cancel</button>
+        </div>
+      </form>
+    </dialog>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
