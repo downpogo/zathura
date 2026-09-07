@@ -53,7 +53,7 @@ try {
   child.stdin.end(JSON.stringify([pdf]));
   await page.keyboard.press('Control+o');
   await new Promise(resolve => child.on('exit', resolve));
-  await page.waitForFunction(() => document.querySelector('footer')?.textContent.includes('| Page 1 of '), null, { timeout: 60_000, polling: 250 });
+  await page.waitForFunction(() => /^1\//.test(document.querySelector('#status-pages')?.textContent ?? ''), null, { timeout: 60_000, polling: 250 });
   await page.keyboard.press('Tab');
   await page.waitForFunction(() => !document.querySelector('#outline').hidden, null, { polling: 250 });
   await delay(1000);

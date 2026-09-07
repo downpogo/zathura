@@ -103,6 +103,11 @@ test('NEXT-02 Windows release: reading state persists across app restarts', { ti
   assert.equal(process.platform, 'win32', 'Run explicitly on native Windows; browser previews are not evidence.');
   const profile = await mkdtemp(join(tmpdir(), 'zathura-persistence-'));
   const openSettled = page => page.waitForFunction(() => !document.body.hasAttribute('data-opening'), null, { polling: 250 });
+  const statusStarts = (page, prefix, timeout) => page.waitForFunction(expected => {
+    const name = document.querySelector('#status-name')?.textContent ?? '';
+    const pages = document.querySelector('#status-pages')?.textContent ?? '';
+    return (pages ? `${name} | ${pages}` : name).startsWith(expected);
+  }, prefix, { timeout, polling: 250 });
   try {
     // Phase A: read position/zoom, hide the status bar, close gracefully.
     {
@@ -111,17 +116,15 @@ test('NEXT-02 Windows release: reading state persists across app restarts', { ti
         await page.getByText('No document open.', { exact: true }).waitFor();
         await drivePicker(page, app, ['navigation']);
         await openSettled(page);
-        await page.waitForFunction(() => document.querySelector('footer').textContent.startsWith('navigation.pdf | Page 1 of 4 | '),
-          null, { timeout: 20_000, polling: 250 });
+        await statusStarts(page, 'navigation.pdf | 1/4', 20_000);
         await page.keyboard.press('3');
         await page.keyboard.press('G');
-        await page.waitForFunction(() => document.querySelector('footer').textContent.startsWith('navigation.pdf | Page 3 of 4 | '),
-          null, { timeout: 15_000, polling: 250 });
-        const beforeZoom = await page.evaluate(() => document.querySelector('footer').textContent);
+        await statusStarts(page, 'navigation.pdf | 3/4', 15_000);
+        const beforeZoom = await page.evaluate(() => document.querySelector('footer')?.dataset.zoomLabel);
         await page.keyboard.press('+');
-        await page.waitForFunction(previous => document.querySelector('footer').textContent !== previous,
+        await page.waitForFunction(previous => document.querySelector('footer')?.dataset.zoomLabel !== previous,
           beforeZoom, { timeout: 15_000, polling: 250 });
-        const zoomLabel = await page.evaluate(() => document.querySelector('footer').textContent.split(' | ')[2]);
+        const zoomLabel = await page.evaluate(() => document.querySelector('footer')?.dataset.zoomLabel);
         assert.ok(zoomLabel && zoomLabel !== '100%', `Zoom label must change after '+' (got "${zoomLabel}")`);
         await page.keyboard.press('Control+n');
         await page.waitForFunction(() => document.querySelector('footer').hidden, null, { polling: 250 });
@@ -145,8 +148,7 @@ test('NEXT-02 Windows release: reading state persists across app restarts', { ti
         await drivePicker(page, app, ['navigation']);
         await openSettled(page);
         try {
-          await page.waitForFunction(() => document.querySelector('footer').textContent.startsWith('navigation.pdf | Page 3 of 4 | '),
-            null, { timeout: 20_000, polling: 250 });
+          await statusStarts(page, 'navigation.pdf | 3/4', 20_000);
         } catch (error) {
           const probe = await page.evaluate(() => ({
             footer: document.querySelector('footer').textContent,
@@ -154,8 +156,8 @@ test('NEXT-02 Windows release: reading state persists across app restarts', { ti
           }));
           throw new Error(`Phase B did not restore: ${JSON.stringify(probe)}`, { cause: error });
         }
-        const footer = await page.evaluate(() => document.querySelector('footer').textContent);
-        assert.ok(footer.includes('Page 3 of 4'), 'Page position must be restored from history');
+        const footer = await page.evaluate(() => document.querySelector('#status-pages')?.textContent);
+        assert.equal(footer, '3/4', 'Page position must be restored from history');
         // Phase 6 tail: the status bar toggle state persisted, so the user can restore it.
         await page.keyboard.press('Control+n');
         await page.waitForFunction(() => !document.querySelector('footer').hidden, null, { polling: 250 });
@@ -185,8 +187,7 @@ test('NEXT-02 Windows release: reading state persists across app restarts', { ti
         await drivePicker(page, app, ['navigation']);
         await openSettled(page);
         try {
-          await page.waitForFunction(() => document.querySelector('footer').textContent.startsWith('navigation.pdf | Page 1 of 4 | '),
-            null, { timeout: 20_000, polling: 250 });
+          await statusStarts(page, 'navigation.pdf | 1/4', 20_000);
         } catch (error) {
           const probe = await page.evaluate(() => ({
             footer: document.querySelector('footer').textContent,

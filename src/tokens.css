@@ -34,9 +34,9 @@
     --size-dialog-inline: min(var(--size-content-inline), calc(var(--size-fluid) - var(--space-8)));
     --size-control-min: 2.25rem;
     --size-icon: 1.125rem;
-    --radius-small: 0.25rem;
-    --radius-medium: 0.5rem;
-    --radius-large: 0.75rem;
+    --radius-small: 0;
+    --radius-medium: 0;
+    --radius-large: 0;
     --radius-pill: 999rem;
     --border-width: 1px;
     --border-width-focus: 2px;

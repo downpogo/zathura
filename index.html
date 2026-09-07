@@ -21,13 +21,15 @@
       <div id="reader" aria-label="PDF document" hidden></div>
     </main>
     <div id="command-bar" hidden>
-      <label for="command-input">Command</label>
       <span aria-hidden="true">:</span>
-      <input id="command-input" class="input" type="text" autocomplete="off" spellcheck="false"
+      <input id="command-input" type="text" autocomplete="off" spellcheck="false"
              aria-label="Reader command (for example q to close this document)" />
     </div>
     <ul id="file-results" aria-label="File opening feedback" hidden></ul>
-    <footer role="status">Open local PDFs with Ctrl+O (Cmd+O on macOS).</footer>
+    <footer role="status">
+      <span id="status-name">No document open.</span>
+      <span id="status-pages"></span>
+    </footer>
     <dialog id="document-list" aria-labelledby="document-list-title">
       <h2 id="document-list-title">Open documents</h2>
       <div id="document-items" role="listbox" aria-label="Open documents"></div>

@@ -134,12 +134,12 @@ try {
     $navigation = [System.IO.Path]::GetFullPath("$Root\fixtures\pdfs\navigation.pdf")
     Set-PickerFiles @($basic, $navigation)
     Click-PickerButton '1'
-    Wait-TextStart 'basic.pdf | Page 1 of 1 | '
+    Wait-TextStart 'basic.pdf'
     Wait-TextStart 'navigation.pdf'
     Send-AppKeys '^o'
     Wait-Picker
     Click-PickerButton '2'
-    Wait-TextStart 'basic.pdf | Page 1 of 1 | '
+    Wait-TextStart 'basic.pdf'
     Send-AppKeys ':'
     Wait-Text 'Command'
     Send-AppKeys 'q'

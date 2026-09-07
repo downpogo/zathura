@@ -76,6 +76,8 @@
     box-shadow: var(--shadow-control);
   }
   dialog::backdrop { background-color: var(--color-overlay); }
+  /* The modal frame is the focus context; interactive children keep outlines. */
+  dialog:focus-visible { outline: none; }
   .dialog-content { display: grid; gap: var(--space-3); }
   .dialog-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); justify-content: end; }
   .button {
@@ -305,14 +307,20 @@
     overflow-wrap: anywhere;
   }
 
+  /* display:grid would override the UA's closed-dialog none, so scope the
+     layout to the open state. */
+  #document-list[open] {
+    display: grid;
+    gap: var(--space-4);
+  }
+
   .document-item {
     display: block;
     inline-size: var(--size-fluid);
-    padding: var(--space-2) var(--space-3);
-    border: var(--border-width) solid var(--color-border);
-    border-radius: var(--radius-small);
+    padding: var(--space-1) var(--space-2);
+    border: none;
     color: var(--color-text);
-    background-color: var(--color-control);
+    background-color: transparent;
     text-align: start;
     font-size: var(--font-size-small);
     overflow-wrap: anywhere;
@@ -320,8 +328,13 @@
 
   .document-item.highlighted,
   .document-item:hover {
-    border-color: var(--color-border-control);
-    background-color: var(--color-control-active);
+    background-color: var(--color-control-hover);
+  }
+
+  /* Selection is already indicated by the subtle background; the focus
+     outline reads as a stray blue bar inside the clipped list. */
+  .document-item:focus-visible {
+    outline: none;
   }
 
   #document-items {
@@ -340,17 +353,31 @@
     font-size: var(--font-size-small);
   }
 
+  /* Zathura-style prompt: just ":" followed by the caret on the status strip.
+     The input carries all chrome-free styling so it reads as plain text. */
   #command-bar {
     display: flex;
     align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) var(--space-4);
+    gap: var(--space-0);
+    padding: var(--space-1) var(--space-4);
     border-block-start: var(--border-width) solid var(--color-border);
     background-color: var(--color-surface);
-    font-size: var(--font-size-small);
   }
 
-  #command-bar .input { flex: 1; }
+  #command-bar :is(span, input) { font-family: var(--font-family-mono); }
+
+  #command-input {
+    flex: 1;
+    min-block-size: var(--space-0);
+    padding: var(--space-0);
+    border: none;
+    border-radius: var(--radius-small);
+    color: var(--color-text);
+    background-color: transparent;
+    caret-color: var(--color-text);
+  }
+
+  #command-input:focus-visible { outline: none; }
 
   #file-results {
     margin: var(--space-2) var(--space-4);
@@ -363,12 +390,21 @@
   #file-results:empty { display: none; }
 
   footer {
-    padding: var(--space-2) var(--space-4);
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-1) var(--space-4);
     border-block-start: var(--border-width) solid var(--color-border);
     background-color: var(--color-surface);
-    font-size: var(--font-size-caption);
-    color: var(--color-text-muted);
+    font-size: var(--font-size-small);
+    color: var(--color-text);
     overflow-wrap: anywhere;
+  }
+
+  #status-pages {
+    flex: none;
+    font-family: var(--font-family-mono);
   }
 }
 

@@ -8,6 +8,8 @@ import './viewer-overrides.css';
 
 const results = document.querySelector<HTMLUListElement>('#file-results')!;
 const status = document.querySelector<HTMLElement>('footer')!;
+const statusName = document.querySelector<HTMLSpanElement>('#status-name')!;
+const statusPages = document.querySelector<HTMLSpanElement>('#status-pages')!;
 const empty = document.querySelector<HTMLElement>('#empty-reader')!;
 const reader = document.querySelector<HTMLElement>('#reader')!;
 const outlinePanel = document.querySelector<HTMLElement>('#outline')!;
@@ -136,10 +138,24 @@ function finishPassword(value: string | null): void {
 
 function renderStatus(): void {
   const state = active?.session.state();
-  const base = active && state
-    ? `${active.name} | Page ${state.pageNumber} of ${state.pageCount} | ${state.zoomLabel}`
-    : 'No document open.';
-  status.textContent = pendingKeys ? `${base} | Keys: ${pendingKeys}` : base;
+  if (active && state) {
+    statusName.textContent = pendingKeys ? `${active.name} | Keys: ${pendingKeys}` : active.name;
+    statusPages.textContent = `${state.pageNumber}/${state.pageCount}`;
+    // The bar shows only name and page count; the zoom label rides along as
+    // data for assistive tech and tests without cluttering the strip.
+    status.dataset.zoomLabel = state.zoomLabel;
+  } else {
+    statusName.textContent = 'No document open.';
+    statusPages.textContent = '';
+    delete status.dataset.zoomLabel;
+  }
+}
+
+// Transient open/select/load messages occupy the name slot; page count blanks
+// until renderStatus() recomputes from the live session.
+function showStatusMessage(message: string): void {
+  statusName.textContent = message;
+  statusPages.textContent = '';
 }
 
 function feedback(message: string): void {
@@ -295,19 +311,18 @@ async function openFiles(): Promise<void> {
   const request = Symbol('open');
   opening = request;
   document.body.setAttribute('data-opening', 'busy');
-  const previousStatus = status.textContent;
   let openedCount = 0;
   let lastError: string | undefined;
   const isCurrent = () => opening === request && abandoned !== request;
   try {
-    status.textContent = 'Selecting PDFs...';
+    showStatusMessage('Selecting PDFs...');
     const selection = await selectPdfFiles();
     if (!isCurrent()) {
       await releaseUnowned(selection.files.map(file => file.handle));
       return;
     }
     if (selection.cancelled) {
-      if (status.textContent === 'Selecting PDFs...') status.textContent = previousStatus;
+      if (statusName.textContent === 'Selecting PDFs...') renderStatus();
       return;
     }
     results.replaceChildren();
@@ -317,7 +332,7 @@ async function openFiles(): Promise<void> {
     }
     const files = selection.files;
     if (!files.length) {
-      if (status.textContent === 'Selecting PDFs...') status.textContent = previousStatus;
+      if (statusName.textContent === 'Selecting PDFs...') renderStatus();
       return;
     }
     // Lay the reader out before the first session exists: PDFViewer's render
@@ -337,7 +352,7 @@ async function openFiles(): Promise<void> {
         await releaseUnowned(files.slice(index).map(entry => entry.handle));
         return;
       }
-      status.textContent = `Loading ${file.name} (${index + 1} of ${files.length})...`;
+      showStatusMessage(`Loading ${file.name} (${index + 1} of ${files.length})...`);
       let bytes: Uint8Array;
       try {
         bytes = await readPdfFile(file.handle);
@@ -372,7 +387,7 @@ async function openFiles(): Promise<void> {
     if (!sessions.size) {
       resetReader();
       // A single failed selection surfaces its own error; aggregates stay generic.
-      status.textContent = files.length === 1 && lastError ? lastError : 'No document could be opened.';
+      showStatusMessage(files.length === 1 && lastError ? lastError : 'No document could be opened.');
     } else {
       // The loop's last write was a loading status; restore the active view's.
       renderStatus();
@@ -380,8 +395,8 @@ async function openFiles(): Promise<void> {
   } catch (error) {
     if (!isCurrent()) return;
     if (!sessions.size) resetReader();
-    status.textContent = error instanceof NativeFileError || error instanceof DocumentSessionError
-      ? error.message : 'Could not open this document. Try another PDF.';
+    showStatusMessage(error instanceof NativeFileError || error instanceof DocumentSessionError
+      ? error.message : 'Could not open this document. Try another PDF.');
   } finally {
     if (opening === request) {
       opening = undefined;

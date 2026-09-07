@@ -153,8 +153,12 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
       } finally { clearTimeout(timer); if (child.exitCode === null) child.kill(); }
     }
     async function diagnose(expected) {
-      return page.evaluate(() => ({
-        status: document.querySelector('footer').textContent,
+      return page.evaluate(() => {
+        const name = document.querySelector('#status-name')?.textContent ?? '';
+        const pages = document.querySelector('#status-pages')?.textContent ?? '';
+        return {
+          status: pages ? `${name} | ${pages}` : name,
+          zoom: document.querySelector('footer')?.dataset.zoomLabel ?? '',
         dialogOpen: document.querySelector('#password-dialog').open,
         readerHidden: document.querySelector('#reader').hidden,
         documents: {
@@ -167,29 +171,56 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
         })),
         pages: document.querySelectorAll('#reader .pdfViewer .page').length,
         results: [...document.querySelectorAll('#file-results li')].map(item => item.textContent),
-      })).then(actual => {
+        };
+      }).then(actual => {
         throw new Error(`Expected status "${expected}" but found ${JSON.stringify(actual)}`);
       });
     }
+    // The status bar splits into a name span and a page-count span; the
+    // predicates compose the single-string form so assertions read naturally.
     async function status(text) {
       try {
-        await page.waitForFunction(expected => document.querySelector('footer').textContent === expected, text, { timeout: 15_000, polling: 250 });
+        await page.waitForFunction(expected => {
+          const name = document.querySelector('#status-name')?.textContent ?? '';
+          const pages = document.querySelector('#status-pages')?.textContent ?? '';
+          return (pages ? `${name} | ${pages}` : name) === expected;
+        }, text, { timeout: 15_000, polling: 250 });
       } catch { await diagnose(text); }
     }
     async function statusStarts(prefix, timeout = 20_000) {
       try {
-        await page.waitForFunction(expected => document.querySelector('footer').textContent.startsWith(expected), prefix, { timeout, polling: 250 });
+        await page.waitForFunction(expected => {
+          const name = document.querySelector('#status-name')?.textContent ?? '';
+          const pages = document.querySelector('#status-pages')?.textContent ?? '';
+          return (pages ? `${name} | ${pages}` : name).startsWith(expected);
+        }, prefix, { timeout, polling: 250 });
       } catch { await diagnose(prefix); }
     }
     async function footerIncludes(text) {
       try {
-        await page.waitForFunction(expected => document.querySelector('footer').textContent.includes(expected), text, { polling: 250 });
+        await page.waitForFunction(expected => {
+          const name = document.querySelector('#status-name')?.textContent ?? '';
+          const pages = document.querySelector('#status-pages')?.textContent ?? '';
+          return (pages ? `${name} | ${pages}` : name).includes(expected);
+        }, text, { polling: 250 });
       } catch { await diagnose(text); }
     }
     async function footerExcludes(text) {
       try {
-        await page.waitForFunction(unexpected => !document.querySelector('footer').textContent.includes(unexpected), text, { polling: 250 });
+        await page.waitForFunction(unexpected => {
+          const name = document.querySelector('#status-name')?.textContent ?? '';
+          const pages = document.querySelector('#status-pages')?.textContent ?? '';
+          return !(pages ? `${name} | ${pages}` : name).includes(unexpected);
+        }, text, { polling: 250 });
       } catch { await diagnose(text); }
+    }
+    // The bar itself shows only name and page count; the zoom label lives in
+    // the footer's data-zoom-label attribute.
+    async function zoomLabel(expected) {
+      try {
+        await page.waitForFunction(label => document.querySelector('footer')?.dataset.zoomLabel === label,
+          expected, { timeout: 15_000, polling: 250 });
+      } catch { await diagnose(expected); }
     }
     // Upstream PDFViewer builds .page divs carrying data-page-number inside
     // #reader .pdfViewer; page 1 is the render target for first-page proofs.
@@ -228,15 +259,19 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
       await noWorkers();
     }
     async function rendered(name, count = 1, workers = 1) {
-      // Zoom label varies with the viewport; match the deterministic prefix.
-      await statusStarts(`${name}.pdf | Page 1 of ${count} | `);
+      // The page count is deterministic; match name and pages.
+      await statusStarts(`${name}.pdf | 1/${count}`);
       await until(() => page.workers().length === workers, `Expected ${workers} actual PDF worker${workers === 1 ? '' : 's'}`);
       const canvas = firstPageCanvas();
       try {
         await canvas.waitFor();
       } catch (error) {
         const probe = await page.evaluate(() => ({
-          status: document.querySelector('footer').textContent,
+          status: (() => {
+            const name = document.querySelector('#status-name')?.textContent ?? '';
+            const pages = document.querySelector('#status-pages')?.textContent ?? '';
+            return pages ? `${name} | ${pages}` : name;
+          })(),
           pages: document.querySelectorAll('#reader .pdfViewer .page').length,
           pageNumbers: [...document.querySelectorAll('#reader .pdfViewer .page')].slice(0, 3).map(page => page.getAttribute('data-page-number')),
           canvases: [...document.querySelectorAll('#reader .pdfViewer canvas')].slice(0, 2).map(canvas => ({ width: canvas.width, height: canvas.height, box: canvas.getBoundingClientRect().toJSON() })),
@@ -363,7 +398,7 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
     const basicScroll = await sessionView(0).evaluate(view => view.scrollTop);
     assert.ok(Math.abs(basicScroll - 300) <= 1, `basic.pdf view must be scrollable to 300px (got ${basicScroll})`);
     await activateFromList('navigation.pdf');
-    await statusStarts('navigation.pdf | Page 1 of 4 | ');
+    await statusStarts('navigation.pdf | 1/4');
     await page.waitForFunction(() => {
       const view = document.querySelectorAll('#reader .session-view')[1];
       return view.querySelector('.pdfViewer canvas') !== null;
@@ -375,31 +410,31 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
     const navigationScroll = await sessionView(1).evaluate(view => view.scrollTop);
     assert.ok(Math.abs(navigationScroll - 500) <= 1, `navigation.pdf view must be scrollable to 500px (got ${navigationScroll})`);
     await activateFromList('basic.pdf');
-    await statusStarts('basic.pdf | Page 1 of 1 | ');
+    await statusStarts('basic.pdf | 1/1');
     await page.waitForFunction(target => Math.abs(document.querySelectorAll('#reader .session-view')[0].scrollTop - target) <= 1, basicScroll, { polling: 250 });
     await activateFromList('navigation.pdf');
-    await statusStarts('navigation.pdf | Page 1 of 4 | ');
+    await statusStarts('navigation.pdf | 1/4');
     await page.waitForFunction(target => Math.abs(document.querySelectorAll('#reader .session-view')[1].scrollTop - target) <= 1, navigationScroll, { polling: 250 });
 
     // CORE-07 gt/gT switch documents cyclically (headless, no modal needed).
     await page.keyboard.press('g');
     await page.keyboard.press('t');
-    await statusStarts('basic.pdf | Page 1 of 1 | ');
+    await statusStarts('basic.pdf | 1/1');
     await page.keyboard.press('g');
     await page.keyboard.press('T');
-    await statusStarts('navigation.pdf | Page 1 of 4 | ');
+    await statusStarts('navigation.pdf | 1/4');
 
     // CORE-07 zoom/fit on the active document, at 100% before and after.
     await activateFromList('basic.pdf');
-    await statusStarts('basic.pdf | Page 1 of 1 | 100%');
+    await zoomLabel('100%');
     await page.keyboard.press('+');
-    await status('basic.pdf | Page 1 of 1 | 110%');
+    await zoomLabel('110%');
     await page.keyboard.press('=');
-    await status('basic.pdf | Page 1 of 1 | 100%');
+    await zoomLabel('100%');
     await page.keyboard.press('a');
-    await status('basic.pdf | Page 1 of 1 | Fit page');
+    await zoomLabel('Fit page');
     await page.keyboard.press('s');
-    await status('basic.pdf | Page 1 of 1 | Fit width');
+    await zoomLabel('Fit width');
     // Full-bleed fit-width: the page spans the session view's full client
     // width and never overflows into a horizontal scrollbar.
     await page.waitForFunction(() => {
@@ -409,24 +444,28 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
         && view.scrollWidth <= view.clientWidth + 1;
     }, null, { polling: 250 });
     await page.keyboard.press('=');
-    await status('basic.pdf | Page 1 of 1 | 100%');
+    await zoomLabel('100%');
 
     // Ctrl+O passthrough: the picker still opens; cancel keeps both documents.
     await picker([], true);
-    await statusStarts('basic.pdf | Page 1 of 1 | ');
+    await statusStarts('basic.pdf | 1/1');
 
     // CORE-07 keyboard: scrolling and paging on navigation.pdf (4 pages).
     await activateFromList('navigation.pdf');
-    await statusStarts('navigation.pdf | Page 1 of 4 | ');
+    await statusStarts('navigation.pdf | 1/4');
     await page.keyboard.press('g');
     await page.keyboard.press('g');
-    await statusStarts('navigation.pdf | Page 1 of 4 | ');
+    await statusStarts('navigation.pdf | 1/4');
     try {
       await page.waitForFunction(() => document.querySelectorAll('#reader .session-view')[1].scrollTop <= 12, null, { polling: 250 });
     } catch (error) {
       const probe = await page.evaluate(() => ({
         scroll: [...document.querySelectorAll('#reader .session-view')].map(view => view.scrollTop),
-        footer: document.querySelector('footer').textContent,
+        status: (() => {
+          const name = document.querySelector('#status-name')?.textContent ?? '';
+          const pages = document.querySelector('#status-pages')?.textContent ?? '';
+          return pages ? `${name} | ${pages}` : name;
+        })(),
         activeElement: document.activeElement?.className ?? 'none',
         selected: [...document.querySelectorAll('#document-items .document-item')].map(item => item.getAttribute('aria-selected')),
       }));
@@ -443,14 +482,14 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
     }, { before: beforeHalf, half: halfViewport }, { polling: 250 });
     await page.keyboard.press('g');
     await page.keyboard.press('g');
-    await statusStarts('navigation.pdf | Page 1 of 4 | ');
+    await statusStarts('navigation.pdf | 1/4');
     await page.waitForFunction(() => document.querySelectorAll('#reader .session-view')[1].scrollTop <= 12, null, { polling: 250 });
     await page.keyboard.press('3');
     await footerIncludes('Keys: 3');
     await page.keyboard.press('G');
-    await statusStarts('navigation.pdf | Page 3 of 4 | ');
+    await statusStarts('navigation.pdf | 3/4');
     await page.keyboard.press('G');
-    await statusStarts('navigation.pdf | Page 4 of 4 | ');
+    await statusStarts('navigation.pdf | 4/4');
     await page.waitForFunction(() => {
       const view = document.querySelectorAll('#reader .session-view')[1];
       return view.scrollTop >= (view.scrollHeight - view.clientHeight) / 2;
@@ -459,21 +498,21 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
     await footerIncludes('Keys: 9999');
     await page.keyboard.press('G');
     await page.locator('#file-results li').filter({ hasText: 'out of range' }).first().waitFor();
-    await statusStarts('navigation.pdf | Page 4 of 4 | ');
+    await statusStarts('navigation.pdf | 4/4');
     // Counted go is vi-style: digits, then 'gg' completes ('2g' pends visibly).
     await page.keyboard.press('2');
     await footerIncludes('Keys: 2');
     await page.keyboard.press('g');
     await footerIncludes('Keys: 2g');
     await page.keyboard.press('g');
-    await statusStarts('navigation.pdf | Page 2 of 4 | ');
+    await statusStarts('navigation.pdf | 2/4');
     await footerExcludes('Keys:');
     // Escape abandons a pending count without changing the page.
     await page.keyboard.press('7');
     await footerIncludes('Keys: 7');
     await page.keyboard.press('Escape');
     await footerExcludes('Keys:');
-    await statusStarts('navigation.pdf | Page 2 of 4 | ');
+    await statusStarts('navigation.pdf | 2/4');
 
     // CORE-08 outline sidebar. Placement: immediately after the keyboard phase,
     // with both tabs still open and navigation.pdf active, so the fixture tree,
@@ -518,17 +557,17 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
     // The named destination jumps to page 3; the sidebar stays open (no auto-hide).
     await expanderFor('Chapter 1 (direct)').click();
     await outlineRow('Section 1.1 (named)').click();
-    await statusStarts('navigation.pdf | Page 3 of 4 | ');
+    await statusStarts('navigation.pdf | 3/4');
     assert.equal(await outlineHidden(), false, 'Outline navigation keeps the sidebar open');
     // A broken named target stays on page 3 with nonfatal feedback.
     await outlineRow('Missing named target').click();
     await page.locator('#file-results li').filter({ hasText: 'This destination is not available.' }).first().waitFor();
-    await statusStarts('navigation.pdf | Page 3 of 4 | ');
+    await statusStarts('navigation.pdf | 3/4');
 
     // A document without an outline shows the honest empty state; reading still works.
     await page.keyboard.press('g');
     await page.keyboard.press('t');
-    await statusStarts('basic.pdf | Page 1 of 1 | ');
+    await statusStarts('basic.pdf | 1/1');
     await page.waitForFunction(() =>
       document.querySelector('#outline .outline-empty')?.textContent === 'This PDF has no table of contents.',
     null, { polling: 250 });
@@ -538,7 +577,7 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
 
     // Fit-width reflows against the narrower sidebar layout without overflowing.
     await page.keyboard.press('s');
-    await statusStarts('basic.pdf | Page 1 of 1 | Fit width');
+    await zoomLabel('Fit width');
     await page.waitForFunction(() => {
       const view = document.querySelector('#reader .session-view.active-view');
       const pageEl = view.querySelector('.pdfViewer .page');
@@ -546,7 +585,7 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
         && view.scrollWidth <= view.clientWidth + 1;
     }, null, { polling: 250 });
     await page.keyboard.press('=');
-    await statusStarts('basic.pdf | Page 1 of 1 | 100%');
+    await zoomLabel('100%');
 
     // Closing every session hides the sidebar and clears the tree entirely.
     await closeAllSessions();
@@ -576,12 +615,12 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
     await picker(['basic']);
     await openSettled();
     assert.equal(workerCreated, workersBeforeDuplicate, 'Duplicate selection must not spawn a worker');
-    await statusStarts('basic.pdf | Page 1 of 1 | ');
+    await statusStarts('basic.pdf | 1/1');
     assert.equal(await page.locator('#reader .session-view').count(), 1);
     await until(() => page.workers().length === 1, 'Duplicate selection must reuse the existing session worker');
     await picker(['navigation']);
     await openSettled();
-    await statusStarts('navigation.pdf | Page 1 of 4 | ');
+    await statusStarts('navigation.pdf | 1/4');
     assert.equal(await page.locator('#reader .session-view').count(), 2);
     await until(() => page.workers().length === 2, 'Expected one worker per session');
     const workersBeforeSecondDuplicate = workerCreated;
@@ -589,7 +628,7 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
     await openSettled();
     assert.equal(workerCreated, workersBeforeSecondDuplicate, 'Duplicate navigation selection must not spawn a worker');
     assert.equal(await page.locator('#reader .session-view').count(), 2);
-    await statusStarts('navigation.pdf | Page 1 of 4 | ');
+    await statusStarts('navigation.pdf | 1/4');
 
     // Ctrl+L switcher functional check: k/j move the highlight (with the
     // active document pre-selected), Enter activates, Escape closes without
@@ -603,31 +642,31 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
     assert.deepEqual(rows.map(row => row.highlighted), [true, false], 'k moves the highlight to the previous entry');
     await page.keyboard.press('Enter');
     await switcherClosed();
-    await statusStarts('basic.pdf | Page 1 of 1 | ');
+    await statusStarts('basic.pdf | 1/1');
     await openSwitcher();
     await page.keyboard.press('j');
     rows = await switcherRows();
     assert.deepEqual(rows.map(row => row.highlighted), [false, true], 'j moves the highlight to the next entry');
     await page.keyboard.press('Enter');
     await switcherClosed();
-    await statusStarts('navigation.pdf | Page 1 of 4 | ');
+    await statusStarts('navigation.pdf | 1/4');
     await openSwitcher();
     rows = await switcherRows();
     assert.deepEqual(rows.map(row => row.selected), ['false', 'true'], 'The highlight follows the newly active document');
     await page.keyboard.press('k');
     await page.keyboard.press('Enter');
     await switcherClosed();
-    await statusStarts('basic.pdf | Page 1 of 1 | ');
+    await statusStarts('basic.pdf | 1/1');
     await openSwitcher();
     await page.keyboard.press('Escape');
     await switcherClosed();
-    await statusStarts('basic.pdf | Page 1 of 1 | ');
+    await statusStarts('basic.pdf | 1/1');
     assert.equal(workerCreated, workersBeforeSwitching, 'Switching via the modal must not spawn a worker');
 
     // CORE-06 close semantics: ':q' closes the active document and its
     // neighbor (next, else previous) becomes active.
     await closeViaCommand();
-    await statusStarts('navigation.pdf | Page 1 of 4 | ');
+    await statusStarts('navigation.pdf | 1/4');
     await openSwitcher();
     rows = await switcherRows();
     assert.deepEqual(rows.map(row => row.label), ['navigation.pdf'], 'Only the surviving document remains in the switcher');
@@ -645,7 +684,7 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
     await page.keyboard.press('Enter');
     await page.getByText('Unknown command: nope', { exact: true }).waitFor();
     await page.locator('#command-input').waitFor({ state: 'hidden' });
-    await statusStarts('basic.pdf | Page 1 of 1 | ');
+    await statusStarts('basic.pdf | 1/1');
     await close();
     assert.equal(await page.evaluate(() => document.querySelector('header')), null, 'The minimal UI has no header after close either');
 
@@ -683,18 +722,18 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
     }
     await openNavigation();
     await navigationLinks().nth(0).click();
-    await statusStarts('navigation.pdf | Page 2 of 4 | ');
+    await statusStarts('navigation.pdf | 2/4');
     assert.ok(page.url().startsWith('http://tauri.localhost/'), 'Internal links must never navigate the page');
     await close();
     await openNavigation();
     await navigationLinks().nth(1).click();
-    await statusStarts('navigation.pdf | Page 3 of 4 | ');
+    await statusStarts('navigation.pdf | 3/4');
     assert.ok(page.url().startsWith('http://tauri.localhost/'), 'Named destinations must never navigate the page');
     await close();
     await openNavigation();
     await navigationLinks().nth(2).click();
     await page.locator('#file-results li').filter({ hasText: 'This destination is not available.' }).first().waitFor();
-    await statusStarts('navigation.pdf | Page 1 of 4 | ');
+    await statusStarts('navigation.pdf | 1/4');
     assert.ok(page.url().startsWith('http://tauri.localhost/'), 'Broken destinations must never navigate the page');
     await close();
 
@@ -746,7 +785,7 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
 
     // Bounded long-document behavior: lazy page rendering and scroll tracking.
     await picker(['long-text']);
-    await statusStarts('long-text.pdf | Page 1 of 300 | ');
+    await statusStarts('long-text.pdf | 1/300');
     // The status flips at pagesinit; poll for the async first paint.
     let initialCanvases = 0;
     await until(async () => {
@@ -760,7 +799,7 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
       const target = document.querySelectorAll('#reader .pdfViewer .page')[149];
       container.scrollTop = target.offsetTop;
     });
-    await statusStarts('long-text.pdf | Page 150 of 300 | ');
+    await statusStarts('long-text.pdf | 150/300');
     const afterJump = await page.locator('#reader .pdfViewer .page canvas').count();
     assert.ok(afterJump < 12, `Rendering resources must stay bounded after a page jump (found ${afterJump} canvases)`);
     await close();
