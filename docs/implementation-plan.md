@@ -520,6 +520,25 @@ whole-document text extraction during ordinary file opening.
 
 ## NEXT-02: Local Reading-State Persistence
 
+Owner: OpenCode / gpt-6-astra, 2026-09-07 (user-directed subset)
+Status: done (Windows verified) — page/zoom per document + status-bar
+visibility + `:clear-history`. Deferred: window geometry, recent-files
+reopen flow (needs explicit authorization discussion).
+Changed files: src/prefs.ts, src/document-session.ts (zoomValue/setZoomValue,
+scrollToPage location refresh), src/main.ts, tests/prefs.test.mjs,
+tests/windows-persistence-smoke.mjs, tests/windows-pdf-smoke.mjs,
+package.json (`test:persistence:windows`), docs/verification/reading-state.md.
+Decisions / interface changes: content SHA-256 keys (never paths, no
+authorization implied); versioned localStorage blob, corrupt-safe, 512-doc
+cap; `:clear-history` stops saving for the running instance; fit presets
+restore as presets.
+Verification: WSL 81/81; Windows three-launch persistence smoke (restore,
+status-bar toggle, clear) plus updated pdf/theme smokes pass on WebView2
+152.0.4191.66. Found+fixed a CORE-05 stale-location bug (zoom after a page
+jump snapped back). See docs/verification/reading-state.md.
+Remaining blockers / unverified platforms: macOS/WebKitGTK unverified;
+geometry and recent-files reopen deferred.
+
 **Depends on:** CORE-09. **Requires separate assignment; not a core blocker.**
 
 Persist last page/zoom, recent files, and window geometry in a small local store.

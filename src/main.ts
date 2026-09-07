@@ -2,6 +2,7 @@ import { createReaderKeyboard, ReaderCommand } from './keyboard';
 import { DocumentSession, DocumentSessionError } from './document-session';
 import { OutlineTree } from './outline';
 import { NativeFileError, NativeFileHandle, readPdfFile, releasePdfFile, selectPdfFiles } from './native-files';
+import { ReadingPrefs } from './prefs';
 import { TabStrip } from './tabs';
 import 'pdfjs-dist/legacy/web/pdf_viewer.css';
 import './viewer-overrides.css';
@@ -21,8 +22,49 @@ const commandInput = document.querySelector<HTMLInputElement>('#command-input')!
 interface SessionRecord {
   session: DocumentSession;
   name: string;
+  /** Content hash (SHA-256 hex) — the persistence key, never a file path. */
+  key: string;
   handle: NativeFileHandle;
   view: HTMLDivElement;
+}
+
+const prefs = new ReadingPrefs(globalThis.localStorage);
+const pendingSaves = new Map<string, ReturnType<typeof setTimeout>>();
+// ':clear-history' stops saving for this instance; a fresh launch starts
+// recording again. Otherwise the beforeunload flush would resurrect the
+// history of still-open sessions.
+let persistenceEnabled = true;
+
+function saveSnapshot(session: DocumentSession, key: string): void {
+  if (!persistenceEnabled) return;
+  const state = session.state();
+  const pending = pendingSaves.get(key);
+  if (pending !== undefined) {
+    clearTimeout(pending);
+    pendingSaves.delete(key);
+  }
+  prefs.putDocument(key, { page: state.pageNumber, zoom: session.zoomValue });
+}
+
+function scheduleSave(key: string, session: DocumentSession | undefined): void {
+  if (!persistenceEnabled || !session || pendingSaves.has(key)) return;
+  const timer = setTimeout(() => {
+    pendingSaves.delete(key);
+    if (session.isDisposed) return;
+    saveSnapshot(session, key);
+  }, 400);
+  pendingSaves.set(key, timer);
+}
+
+async function contentKey(bytes: Uint8Array): Promise<string> {
+  // Hash before PDF.js may detach the buffer; the key is content only.
+  const digest = await crypto.subtle.digest('SHA-256', bytes as unknown as ArrayBuffer);
+  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function flushPendingSaves(): void {
+  for (const timer of pendingSaves.values()) clearTimeout(timer);
+  pendingSaves.clear();
 }
 
 const sessions = new Map<symbol, SessionRecord>();
@@ -63,6 +105,9 @@ async function loadOutline(): Promise<void> {
   if (active !== record || !outlineVisible) return;
   outlineTree.setNodes(nodes);
 }
+
+// Restore the remembered status-bar visibility before any UI paints state.
+status.hidden = prefs.statusBarHidden();
 
 const keyboard = createReaderKeyboard({
   execute: runCommand,
@@ -118,6 +163,8 @@ function closeSession(id: symbol): void {
   sessions.delete(id);
   tabs.remove(id);
   if (active?.session.id === id) active = undefined;
+  // Persist the closing document's last page/zoom before teardown.
+  saveSnapshot(record.session, record.key);
   void record.session.dispose();
   void releasePdfFile(record.handle).catch(() => {
     feedback('Could not release a closed document. Restart the app to clear native handles.');
@@ -132,6 +179,7 @@ function closeSession(id: symbol): void {
 
 function resetReader(): void {
   for (const record of sessions.values()) {
+    saveSnapshot(record.session, record.key);
     void record.session.dispose();
     void releasePdfFile(record.handle).catch(() => { /* Per-close feedback covers restart guidance. */ });
     record.view.remove();
@@ -282,7 +330,12 @@ async function openFiles(): Promise<void> {
       try {
         // The handle stays open for the session lifetime so duplicate
         // selections can focus this document instead of reopening it.
-        await createSession(request, file.handle, file.name, bytes, openedCount === 0);
+        const key = await contentKey(bytes);
+        if (!isCurrent()) {
+          await releaseUnowned(files.slice(index).map(entry => entry.handle));
+          return;
+        }
+        await createSession(request, key, file.handle, file.name, bytes, openedCount === 0);
         openedCount += 1;
       } catch (error) {
         const message = error instanceof DocumentSessionError ? error.message : 'Could not open this document. Try another PDF.';
@@ -315,7 +368,7 @@ async function openFiles(): Promise<void> {
   }
 }
 
-async function createSession(request: symbol, handle: NativeFileHandle, name: string, bytes: Uint8Array, showNow: boolean): Promise<void> {
+async function createSession(request: symbol, key: string, handle: NativeFileHandle, name: string, bytes: Uint8Array, showNow: boolean): Promise<void> {
   const isCurrent = () => opening === request && abandoned !== request && creating === request;
   const view = document.createElement('div');
   view.className = 'session-view';
@@ -337,15 +390,23 @@ async function createSession(request: symbol, handle: NativeFileHandle, name: st
       }),
       onState: () => {
         if (active?.session.id === session?.id) renderStatus();
+        scheduleSave(key, session);
       },
       onNonfatalError: message => feedback(message),
     });
   } finally {
     if (creating === request) creating = undefined;
   }
-  const record: SessionRecord = { session: session!, name, handle, view };
+  const record: SessionRecord = { session: session!, name, key, handle, view };
   sessions.set(session!.id, record);
   tabs.add(session!.id, name);
+  // Restore remembered reading position/zoom for this content before the
+  // first paint of the tab; invalid stored values are ignored by the session.
+  const remembered = prefs.document(key);
+  if (remembered) {
+    session.setZoomValue(remembered.zoom);
+    session.scrollToPage(remembered.page);
+  }
   if (showNow || sessions.size === 1) {
     activateSession(session!.id);
   }
@@ -379,6 +440,16 @@ function runUserCommand(raw: string): void {
     closeActiveDocument();
     return;
   }
+  if (command === 'clear-history') {
+    persistenceEnabled = false;
+    for (const timer of pendingSaves.values()) clearTimeout(timer);
+    pendingSaves.clear();
+    prefs.clear();
+    // Restore the cleared default so state and UI agree immediately.
+    status.hidden = false;
+    feedback('Reading history cleared.');
+    return;
+  }
   feedback(`Unknown command: ${command}`);
 }
 
@@ -395,6 +466,12 @@ commandInput.addEventListener('keydown', event => {
 });
 commandInput.addEventListener('blur', () => hideCommandBar());
 window.addEventListener('blur', () => keyboard.reset());
+window.addEventListener('beforeunload', () => {
+  // Flush debounced per-document saves so a normal window close keeps the
+  // last page/zoom.
+  for (const record of sessions.values()) saveSnapshot(record.session, record.key);
+  flushPendingSaves();
+});
 document.addEventListener('keydown', event => {
   if (dialog.open) return;
   if ((event.ctrlKey !== event.metaKey) && !event.altKey && !event.shiftKey
@@ -414,6 +491,7 @@ document.addEventListener('keydown', event => {
     // Full-bleed reading: toggle the status bar.
     event.preventDefault();
     status.hidden = !status.hidden;
+    prefs.setStatusBarHidden(status.hidden);
     return;
   }
   const target = event.target;

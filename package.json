@@ -15,6 +15,7 @@
     "test": "pnpm prepare:pdf-assets && node --test tests/*.test.mjs",
     "test:pdf:windows": "node --test tests/windows-pdf-smoke.mjs",
     "test:theme:windows": "node --test tests/windows-theme-smoke.mjs",
+    "test:persistence:windows": "node --test tests/windows-persistence-smoke.mjs",
     "tauri": "tauri"
   },
   "devDependencies": {

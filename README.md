@@ -28,9 +28,12 @@ keyboard-driven:
 | Escape | Clear pending keys |
 
 The sidebar lists the PDF's embedded table of contents: click a section (or
-expand a group) to jump to it; PDFs without an embedded outline say so. The
-Open PDFs button only shows while no document is open; press Ctrl+O any
-time to add more.
+expand a group) to jump to it; PDFs without an embedded outline say so.
+
+**Zathura remembers**: your status-bar preference and each document's last
+page and zoom (keyed by file content, never paths), restored when you reopen
+the same file. Use `:clear-history` in the command prompt to forget
+everything. Press Ctrl+O any time to add more PDFs.
 
 Tabs keep one session per document (duplicate selections focus the existing
 tab), positions persist while switching, and password retry/cancel plus

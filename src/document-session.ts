@@ -121,6 +121,10 @@ class ReaderLinkService extends PDFLinkService {
 /** One continuous document per session. Await disposal before closing over the container. */
 export class DocumentSession {
   readonly id = Symbol('document-session');
+  /** Whether disposal has started (pending work must stop). */
+  get isDisposed(): boolean {
+    return this.disposed;
+  }
   private readonly container: HTMLElement;
   private readonly hooks: SessionHooks;
   private worker?: Worker;
@@ -285,7 +289,19 @@ export class DocumentSession {
   /** One-based physical page jump with bounds validation. */
   scrollToPage(page: number): boolean {
     if (!Number.isInteger(page) || page < 1 || page > this.pageCount) return false;
-    this.pdfViewer?.scrollPageIntoView({ pageNumber: page });
+    const viewer = this.pdfViewer;
+    if (!viewer) return false;
+    viewer.scrollPageIntoView({ pageNumber: page });
+    // Programmatic jumps dispatch pagechanging synchronously but the stored
+    // location updates on the async scroll event (upstream only marks it
+    // stale in panBy). A zoom issued before that event would restore the
+    // pre-jump position, so refresh the location from the settled scroll.
+    const internals = viewer as unknown as {
+      _getVisiblePages?(): { first?: unknown };
+      _updateLocation?(first: unknown): void;
+    };
+    const first = internals._getVisiblePages?.()?.first;
+    if (first) internals._updateLocation?.(first);
     return true;
   }
 
@@ -345,6 +361,27 @@ export class DocumentSession {
   /** Reapply fit presets after container-layout changes (e.g. the sidebar). */
   relayout(): void {
     this.#onWindowResize();
+  }
+
+  /** Raw scale value ('page-actual', 'page-width', '1.1', …) for persistence. */
+  get zoomValue(): string {
+    return String(this.pdfViewer?.currentScaleValue ?? 'page-actual');
+  }
+
+  /** Restore a persisted scale value; unrecognized values are ignored. */
+  setZoomValue(value: string): void {
+    const viewer = this.pdfViewer;
+    if (!viewer || this.disposed) return;
+    if (value === 'page-actual' || value === 'page-width' || value === 'page-fit'
+      || value === 'page-height' || value === 'auto') {
+      viewer.currentScaleValue = value;
+      return;
+    }
+    const scale = Number(value);
+    if (Number.isFinite(scale) && scale > 0 && scale <= 10) {
+      // Upstream parses the assigned value, so a numeric string is equivalent.
+      viewer.currentScaleValue = String(scale);
+    }
   }
 
   zoom(request: ZoomRequest): void {

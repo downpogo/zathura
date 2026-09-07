@@ -157,7 +157,6 @@ test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continu
         status: document.querySelector('footer').textContent,
         dialogOpen: document.querySelector('#password-dialog').open,
         readerHidden: document.querySelector('#reader').hidden,
-        zoomControlsHidden: document.querySelector('#zoom-controls').hidden,
         tabs: [...document.querySelectorAll('#tab-strip .tab')].map(tab => ({
           label: tab.querySelector('.tab-label')?.textContent,
           selected: tab.getAttribute('aria-selected'),
@@ -544,8 +543,15 @@ test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continu
     assert.equal(await page.evaluate(() => document.querySelector('#outline-tree').textContent), '',
       'The tree is cleared, including the no-outline message');
 
+    // Reading-state persistence (NEXT-02) restores page/zoom per content
+    // within the same profile; phase boundaries here need known-fresh state.
+    async function clearHistory() {
+      await page.evaluate(() => localStorage.removeItem('zathura.reading-state.v1'));
+    }
+
     // CORE-06 duplicate handling: selecting an already-open file focuses its
     // existing tab and session without spawning a new worker.
+    await clearHistory();
     await picker(['basic']);
     await rendered('basic');
     assert.equal(await page.evaluate(() => document.querySelector('#tab-strip').hidden), true, 'Strip stays hidden for a single document');
@@ -621,6 +627,7 @@ test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continu
     // Upstream builds section.linkAnnotation containers holding an anchor each.
     const navigationLinks = () => page.locator('#reader .pdfViewer .page[data-page-number="1"] section.linkAnnotation a');
     async function openNavigation() {
+      await clearHistory();
       await picker(['navigation']);
       await rendered('navigation', 4);
       await until(async () => (await navigationLinks().count()) === 3, 'navigation.pdf page 1 must expose three link annotations');
