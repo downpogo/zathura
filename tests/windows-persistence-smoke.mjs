@@ -113,7 +113,7 @@ test('NEXT-02 Windows release: reading state persists across app restarts', { ti
     {
       const { app, browser, page } = await launchInstance(profile, await freePort());
       try {
-        await page.getByText('No document open.', { exact: true }).waitFor();
+        await page.locator('#empty-reader').getByText('No document open.', { exact: true }).waitFor();
         await drivePicker(page, app, ['navigation']);
         await openSettled(page);
         await statusStarts(page, 'navigation.pdf | 1/4', 20_000);
@@ -142,7 +142,7 @@ test('NEXT-02 Windows release: reading state persists across app restarts', { ti
     {
       const { app, browser, page } = await launchInstance(profile, await freePort());
       try {
-        await page.getByText('No document open.', { exact: true }).waitFor();
+        await page.locator('#empty-reader').getByText('No document open.', { exact: true }).waitFor();
         assert.equal(await page.evaluate(() => document.querySelector('footer').hidden), true,
           'statusBarHidden must be persisted and applied at startup');
         await drivePicker(page, app, ['navigation']);
@@ -167,7 +167,7 @@ test('NEXT-02 Windows release: reading state persists across app restarts', { ti
         await page.locator('#command-input').waitFor({ state: 'visible' });
         await page.locator('#command-input').fill('clear-history');
         await page.keyboard.press('Enter');
-        await page.locator('#file-results li').filter({ hasText: 'Reading history cleared.' }).first().waitFor();
+        await page.waitForFunction(() => document.querySelector('#command-bar').hidden, null, { polling: 250 });
         await closeGracefully(app, browser);
       } catch (error) {
         await browser?.close().catch(() => {});
@@ -181,7 +181,7 @@ test('NEXT-02 Windows release: reading state persists across app restarts', { ti
     {
       const { app, browser, page } = await launchInstance(profile, await freePort());
       try {
-        await page.getByText('No document open.', { exact: true }).waitFor();
+        await page.locator('#empty-reader').getByText('No document open.', { exact: true }).waitFor();
         assert.equal(await page.evaluate(() => document.querySelector('footer').hidden), false,
           'After :clear-history the default (visible) status bar must be restored');
         await drivePicker(page, app, ['navigation']);

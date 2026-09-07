@@ -540,7 +540,6 @@ function runUserCommand(raw: string): void {
     // Restore the cleared defaults so state and UI agree immediately.
     status.hidden = false;
     document.documentElement.removeAttribute('data-theme');
-    feedback('Reading history cleared.');
     return;
   }
   feedback(`Unknown command: ${command}`);
