@@ -58,7 +58,7 @@ test('Windows release WebView2: OS theme, live switching, tokens and accessibili
     assert.ok(page, 'Expected the actual bundled Tauri page, not a browser preview');
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
-    await page.getByText('No document open.', { exact: true }).waitFor();
+    await page.locator('#empty-reader').getByText('No document open.', { exact: true }).waitFor();
     // The empty state has no buttons; open the command prompt so a real
     // control (.input) carries the token-propagation and focus checks.
     await page.keyboard.press(':');

@@ -43,7 +43,7 @@ try {
     await delay(100);
   }
   assert.ok(page, 'app page not found');
-  await page.getByText('No document open.', { exact: true }).waitFor();
+  await page.locator('#empty-reader').getByText('No document open.', { exact: true }).waitFor();
   // Drive the real picker with the absolute path.
   const script = join(root, 'tests/windows-picker.ps1').replaceAll("'", "''");
   const child = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command',

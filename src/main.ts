@@ -6,7 +6,6 @@ import { ReadingPrefs } from './prefs';
 import 'pdfjs-dist/legacy/web/pdf_viewer.css';
 import './viewer-overrides.css';
 
-const results = document.querySelector<HTMLUListElement>('#file-results')!;
 const status = document.querySelector<HTMLElement>('footer')!;
 const statusName = document.querySelector<HTMLSpanElement>('#status-name')!;
 const statusPages = document.querySelector<HTMLSpanElement>('#status-pages')!;
@@ -136,7 +135,13 @@ function finishPassword(value: string | null): void {
   reply?.(value);
 }
 
+let statusRevert: ReturnType<typeof setTimeout> | undefined;
+
 function renderStatus(): void {
+  if (statusRevert !== undefined) {
+    clearTimeout(statusRevert);
+    statusRevert = undefined;
+  }
   const state = active?.session.state();
   if (active && state) {
     statusName.textContent = pendingKeys ? `${active.name} | Keys: ${pendingKeys}` : active.name;
@@ -152,17 +157,22 @@ function renderStatus(): void {
 }
 
 // Transient open/select/load messages occupy the name slot; page count blanks
-// until renderStatus() recomputes from the live session.
-function showStatusMessage(message: string): void {
+// until renderStatus() recomputes from the live session. Messages with a
+// revert delay fall back on their own so errors never strand the status bar.
+function showStatusMessage(message: string, revertMs = 0): void {
   statusName.textContent = message;
   statusPages.textContent = '';
-}
-
-function feedback(message: string): void {
-  const item = document.createElement('li');
-  item.textContent = message;
-  results.append(item);
-  results.hidden = false;
+  delete status.dataset.zoomLabel;
+  if (statusRevert !== undefined) {
+    clearTimeout(statusRevert);
+    statusRevert = undefined;
+  }
+  if (revertMs > 0) {
+    statusRevert = setTimeout(() => {
+      statusRevert = undefined;
+      renderStatus();
+    }, revertMs);
+  }
 }
 
 function sessionIds(): symbol[] {
@@ -207,7 +217,7 @@ function closeSession(id: symbol): void {
   saveSnapshot(record.session, record.key);
   void record.session.dispose();
   void releasePdfFile(record.handle).catch(() => {
-    feedback('Could not release a closed document. Restart the app to clear native handles.');
+    showStatusMessage('Could not release a closed document. Restart the app to clear native handles.', 4000);
   });
   record.view.remove();
   if (neighbor) {
@@ -221,7 +231,7 @@ function resetReader(): void {
   for (const record of sessions.values()) {
     saveSnapshot(record.session, record.key);
     void record.session.dispose();
-    void releasePdfFile(record.handle).catch(() => { /* Per-close feedback covers restart guidance. */ });
+    void releasePdfFile(record.handle).catch(() => { /* Per-close status message covers restart guidance. */ });
     record.view.remove();
   }
   sessions.clear();
@@ -273,7 +283,7 @@ function runCommand(command: ReaderCommand): void {
         : command.page === 'last' ? state.pageCount
         : command.page;
       if (!record.session.scrollToPage(page)) {
-        feedback(`Page ${command.page} is out of range (1-${state.pageCount}).`);
+        showStatusMessage(`Page ${command.page} is out of range (1-${state.pageCount}).`, 4000);
       }
       break;
     }
@@ -302,7 +312,7 @@ async function releaseUnowned(handles: NativeFileHandle[]): Promise<void> {
   const owned = handles.filter(handle => !isOwnedHandle(handle));
   const settled = await Promise.allSettled(owned.map(handle => releasePdfFile(handle)));
   if (settled.some(result => result.status === 'rejected')) {
-    feedback('Could not release an unused file. Restart the app to clear native handles.');
+    showStatusMessage('Could not release an unused file. Restart the app to clear native handles.', 4000);
   }
 }
 
@@ -325,10 +335,8 @@ async function openFiles(): Promise<void> {
       if (statusName.textContent === 'Selecting PDFs...') renderStatus();
       return;
     }
-    results.replaceChildren();
-    results.hidden = true;
     for (const failure of selection.errors) {
-      feedback(`Selection ${failure.selectionIndex + 1}: ${new NativeFileError(failure.error).message}`);
+      showStatusMessage(`Selection ${failure.selectionIndex + 1}: ${new NativeFileError(failure.error).message}`, 4000);
     }
     const files = selection.files;
     if (!files.length) {
@@ -357,7 +365,7 @@ async function openFiles(): Promise<void> {
       try {
         bytes = await readPdfFile(file.handle);
       } catch (error) {
-        feedback(`${file.name}: ${error instanceof NativeFileError ? error.message : 'Could not read this document.'}`);
+        showStatusMessage(`${file.name}: ${error instanceof NativeFileError ? error.message : 'Could not read this document.'}`, 4000);
         lastError = error instanceof NativeFileError ? error.message : 'Could not read this document.';
         await releasePdfFile(file.handle).catch(() => { });
         continue;
@@ -379,7 +387,7 @@ async function openFiles(): Promise<void> {
       } catch (error) {
         const message = error instanceof DocumentSessionError ? error.message : 'Could not open this document. Try another PDF.';
         await releasePdfFile(file.handle).catch(() => { });
-        feedback(`${file.name}: ${message}`);
+        showStatusMessage(`${file.name}: ${message}`, 4000);
         lastError = message;
       }
     }
@@ -431,7 +439,7 @@ async function createSession(request: symbol, key: string, handle: NativeFileHan
         if (active?.session.id === session?.id) renderStatus();
         scheduleSave(key, session);
       },
-      onNonfatalError: message => feedback(message),
+      onNonfatalError: message => showStatusMessage(message, 4000),
     });
   } finally {
     if (creating === request) creating = undefined;
@@ -542,7 +550,7 @@ function runUserCommand(raw: string): void {
     document.documentElement.removeAttribute('data-theme');
     return;
   }
-  feedback(`Unknown command: ${command}`);
+  showStatusMessage(`Unknown command: ${command}`, 4000);
 }
 
 commandInput.addEventListener('keydown', event => {

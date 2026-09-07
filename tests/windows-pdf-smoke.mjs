@@ -117,7 +117,7 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
     await cdp.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 });
     // Reload under monitoring and real offline emulation, not merely route blocking.
     await page.reload();
-    await page.getByText('No document open.', { exact: true }).waitFor();
+    await page.locator('#empty-reader').getByText('No document open.', { exact: true }).waitFor();
     assert.equal(await page.evaluate(() => navigator.onLine), false, 'WebView2 must report offline');
     assert.equal(await page.evaluate(() => typeof globalThis.__TAURI_INTERNALS__?.invoke), 'function');
     for (const command of ['read_pdf_file', 'release_pdf_file']) {
@@ -170,7 +170,7 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
           canvases: view.querySelectorAll('canvas').length,
         })),
         pages: document.querySelectorAll('#reader .pdfViewer .page').length,
-        results: [...document.querySelectorAll('#file-results li')].map(item => item.textContent),
+        statusName: document.querySelector('#status-name')?.textContent,
         };
       }).then(actual => {
         throw new Error(`Expected status "${expected}" but found ${JSON.stringify(actual)}`);
@@ -376,11 +376,16 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
     for (const theme of ['dark', 'light']) {
       await page.emulateMedia({ colorScheme: theme });
       try {
-        await page.waitForFunction(theme => getComputedStyle(document.documentElement).colorScheme === theme, theme, { timeout: 15_000, polling: 250 });
+        // colorScheme's computed value echoes the "light dark" token list, so
+        // resolve the scheme through the canvas color the theme actually paints.
+        await page.waitForFunction(theme => {
+          const canvas = getComputedStyle(document.documentElement).backgroundColor;
+          return theme === 'dark' ? canvas === 'rgb(22, 22, 30)' : canvas === 'rgb(208, 213, 227)';
+        }, theme, { timeout: 15_000, polling: 250 });
       } catch (error) {
         const probe = await page.evaluate(() => ({
           dark: matchMedia('(prefers-color-scheme: dark)').matches,
-          scheme: getComputedStyle(document.documentElement).colorScheme,
+          canvas: getComputedStyle(document.documentElement).backgroundColor,
           themeVar: getComputedStyle(document.documentElement).getPropertyValue('--theme-color-scheme').trim(),
         }));
         throw new Error(`Theme emulation did not reach ${theme}: ${JSON.stringify(probe)}`, { cause: error });
@@ -497,7 +502,7 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
     for (const digit of ['9', '9', '9', '9']) await page.keyboard.press(digit);
     await footerIncludes('Keys: 9999');
     await page.keyboard.press('G');
-    await page.locator('#file-results li').filter({ hasText: 'out of range' }).first().waitFor();
+    await page.locator('#status-name').filter({ hasText: 'out of range' }).waitFor();
     await statusStarts('navigation.pdf | 4/4');
     // Counted go is vi-style: digits, then 'gg' completes ('2g' pends visibly).
     await page.keyboard.press('2');
@@ -561,7 +566,7 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
     assert.equal(await outlineHidden(), false, 'Outline navigation keeps the sidebar open');
     // A broken named target stays on page 3 with nonfatal feedback.
     await outlineRow('Missing named target').click();
-    await page.locator('#file-results li').filter({ hasText: 'This destination is not available.' }).first().waitFor();
+    await page.locator('#status-name').filter({ hasText: 'This destination is not available.' }).waitFor();
     await statusStarts('navigation.pdf | 3/4');
 
     // A document without an outline shows the honest empty state; reading still works.
@@ -732,7 +737,7 @@ test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outl
     await close();
     await openNavigation();
     await navigationLinks().nth(2).click();
-    await page.locator('#file-results li').filter({ hasText: 'This destination is not available.' }).first().waitFor();
+    await page.locator('#status-name').filter({ hasText: 'This destination is not available.' }).waitFor();
     await statusStarts('navigation.pdf | 1/4');
     assert.ok(page.url().startsWith('http://tauri.localhost/'), 'Broken destinations must never navigate the page');
     await close();
