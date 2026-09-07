@@ -28,7 +28,7 @@ async function until(predicate, message, timeout = 20_000) {
   assert.fail(message);
 }
 
-test('CORE06/07 Windows release: multi-document tabs, reader keyboard, continuous reader, internal links and offline native PDFs', { timeout: 360_000 }, async () => {
+test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continuous reader, internal links and offline native PDFs', { timeout: 360_000 }, async () => {
   assert.equal(process.platform, 'win32', 'Run explicitly on native Windows; browser previews are not evidence.');
   const executable = join(root, 'src-tauri/target/release/local-pdf-reader.exe');
   await access(executable);
@@ -117,7 +117,7 @@ test('CORE06/07 Windows release: multi-document tabs, reader keyboard, continuou
     await cdp.send('Network.emulateNetworkConditions', { offline: true, latency: 0, downloadThroughput: 0, uploadThroughput: 0 });
     // Reload under monitoring and real offline emulation, not merely route blocking.
     await page.reload();
-    await page.getByRole('button', { name: 'Open PDFs', exact: true }).waitFor();
+    await page.getByText('No document open.', { exact: true }).waitFor();
     assert.equal(await page.evaluate(() => navigator.onLine), false, 'WebView2 must report offline');
     assert.equal(await page.evaluate(() => typeof globalThis.__TAURI_INTERNALS__?.invoke), 'function');
     for (const command of ['read_pdf_file', 'release_pdf_file']) {
@@ -147,13 +147,8 @@ test('CORE06/07 Windows release: multi-document tabs, reader keyboard, continuou
       child.stdin.end(JSON.stringify(names.map(name => join(root, `fixtures/pdfs/${name}.pdf`))));
       const timer = setTimeout(() => child.kill(), 25_000);
       try {
-        if (shortcut) await page.keyboard.press('Control+o');
-        else {
-          const button = page.getByRole('button', { name: 'Open PDFs', exact: true });
-          // The button only exists in the empty state; documents use Ctrl+O.
-          if (await button.isVisible().catch(() => false)) await button.click();
-          else await page.keyboard.press('Control+o');
-        }
+        // Minimal UI: Ctrl+O is the only open path.
+        await page.keyboard.press('Control+o');
         assert.equal(await finished, true, `Owned native picker control failed at ${stage}; private details suppressed`);
       } finally { clearTimeout(timer); if (child.exitCode === null) child.kill(); }
     }
@@ -220,8 +215,8 @@ test('CORE06/07 Windows release: multi-document tabs, reader keyboard, continuou
       await noWorkers();
     }
     async function openSettled() {
-      // The Open button re-enables once the whole selection loop has resolved.
-      await page.waitForFunction(() => !document.querySelector('#open-files').disabled, null, { polling: 250 });
+      // The selection loop clears body[data-opening] when it fully resolves.
+      await page.waitForFunction(() => !document.body.hasAttribute('data-opening'), null, { polling: 250 });
     }
     async function closeAllTabs() {
       for (;;) {
@@ -303,7 +298,7 @@ test('CORE06/07 Windows release: multi-document tabs, reader keyboard, continuou
     })));
     assert.equal(viewRows.length, 2, 'Each selected file opens its own session view');
     assert.deepEqual(viewRows.map(row => row.active), [true, false], 'First file owns the active view');
-    assert.equal(await page.evaluate(() => document.querySelector('header').hidden), true, 'The Open button hides while documents are open');
+    assert.equal(await page.evaluate(() => document.querySelector('header')), null, 'The minimal UI has no header at all');
 
     // Ctrl+N toggles the status bar for full-bleed reading.
     await page.keyboard.press('Control+n');
@@ -469,7 +464,85 @@ test('CORE06/07 Windows release: multi-document tabs, reader keyboard, continuou
     await page.keyboard.press('Escape');
     await footerExcludes('Keys:');
     await statusStarts('navigation.pdf | Page 2 of 4 | ');
+
+    // CORE-08 outline sidebar. Placement: immediately after the keyboard phase,
+    // with both tabs still open and navigation.pdf active, so the fixture tree,
+    // destination jumps and sidebar relayout run against a deterministic state.
+    const outlineHidden = () => page.evaluate(() => document.querySelector('#outline').hidden);
+    assert.equal(await outlineHidden(), true, 'The outline sidebar starts hidden');
+    await page.keyboard.press('Tab');
+    await page.waitForFunction(() => !document.querySelector('#outline').hidden, null, { polling: 250 });
+    assert.equal(await page.evaluate(() => document.activeElement instanceof HTMLElement
+      && document.activeElement.matches('input, textarea, select, [contenteditable="true"], [contenteditable=""]')),
+    false, 'Toggling the sidebar keeps focus out of editable fields');
+    await page.keyboard.press('Tab');
+    await page.waitForFunction(() => document.querySelector('#outline').hidden, null, { polling: 250 });
+    await page.keyboard.press('Tab');
+    await page.waitForFunction(() => !document.querySelector('#outline').hidden, null, { polling: 250 });
+
+    // The fixture tree renders six rows in document order (two nested children
+    // start collapsed); titles are text nodes, so the HTML-like title stays literal.
+    // Rows carry role=treeitem (ARIA tree pattern); expanders are labelled buttons.
+    const outlineRow = title => page.getByRole('treeitem', { name: title, exact: true });
+    const expanderFor = title => page.getByRole('button', { name: `Toggle section ${title}`, exact: true });
+    await page.waitForFunction(() => document.querySelectorAll('#outline .outline-row').length === 6, null, { polling: 250 });
+    assert.deepEqual(await page.evaluate(() =>
+      [...document.querySelectorAll('#outline .outline-row')].map(row => row.textContent),
+    ), [
+      'Chapter 1 (direct)',
+      'Section 1.1 (named)',
+      'Group without destination',
+      'Final page (direct)',
+      'Missing named target',
+      '<b>literal outline title</b>',
+    ]);
+    // The destinationless parent expands its child without navigating.
+    await expanderFor('Group without destination').click();
+    await outlineRow('Final page (direct)').waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const entry = [...document.querySelectorAll('#outline .outline-entry')]
+        .find(li => li.querySelector(':scope > .outline-row')?.textContent === 'Group without destination');
+      return entry?.querySelector(':scope > ul.outline-list')?.hidden === false;
+    }, null, { polling: 250 });
+
+    // The named destination jumps to page 3; the sidebar stays open (no auto-hide).
+    await expanderFor('Chapter 1 (direct)').click();
+    await outlineRow('Section 1.1 (named)').click();
+    await statusStarts('navigation.pdf | Page 3 of 4 | ');
+    assert.equal(await outlineHidden(), false, 'Outline navigation keeps the sidebar open');
+    // A broken named target stays on page 3 with nonfatal feedback.
+    await outlineRow('Missing named target').click();
+    await page.locator('#file-results li').filter({ hasText: 'This destination is not available.' }).first().waitFor();
+    await statusStarts('navigation.pdf | Page 3 of 4 | ');
+
+    // A document without an outline shows the honest empty state; reading still works.
+    await page.keyboard.press('g');
+    await page.keyboard.press('t');
+    await statusStarts('basic.pdf | Page 1 of 1 | ');
+    await page.waitForFunction(() =>
+      document.querySelector('#outline .outline-empty')?.textContent === 'This PDF has no table of contents.',
+    null, { polling: 250 });
+    await page.waitForFunction(() =>
+      document.querySelector('#reader .session-view.active-view .pdfViewer canvas') !== null,
+    null, { polling: 250 });
+
+    // Fit-width reflows against the narrower sidebar layout without overflowing.
+    await page.keyboard.press('s');
+    await statusStarts('basic.pdf | Page 1 of 1 | Fit width');
+    await page.waitForFunction(() => {
+      const view = document.querySelector('#reader .session-view.active-view');
+      const pageEl = view.querySelector('.pdfViewer .page');
+      return Math.abs(pageEl.getBoundingClientRect().width - view.clientWidth) <= 2
+        && view.scrollWidth <= view.clientWidth + 1;
+    }, null, { polling: 250 });
+    await page.keyboard.press('=');
+    await statusStarts('basic.pdf | Page 1 of 1 | 100%');
+
+    // Closing every tab hides the sidebar and clears the tree entirely.
     await closeAllTabs();
+    assert.equal(await outlineHidden(), true, 'The sidebar hides again with no document open');
+    assert.equal(await page.evaluate(() => document.querySelector('#outline-tree').textContent), '',
+      'The tree is cleared, including the no-outline message');
 
     // CORE-06 duplicate handling: selecting an already-open file focuses its
     // existing tab and session without spawning a new worker.
@@ -519,7 +592,7 @@ test('CORE06/07 Windows release: multi-document tabs, reader keyboard, continuou
     await page.locator('#command-input').waitFor({ state: 'hidden' });
     await statusStarts('basic.pdf | Page 1 of 1 | ');
     await close();
-    assert.equal(await page.evaluate(() => document.querySelector('header').hidden), false, 'The Open button returns with the empty state');
+    assert.equal(await page.evaluate(() => document.querySelector('header')), null, 'The minimal UI has no header after close either');
 
     // Probe support files in the real PDF worker, under the app's worker CSP/offline policy.
     await picker(['basic']);
@@ -652,7 +725,7 @@ test('CORE06/07 Windows release: multi-document tabs, reader keyboard, continuou
     assert.equal(pageErrors, 0, 'No uncaught page errors (raw messages suppressed)');
     assert.equal(securityErrors, 0, 'No browser security errors, including worker CSP failures');
     assert.equal(await page.evaluate(() => globalThis.__pdfSmokeCspCount), 0, 'No document CSP violations');
-    console.log(`Verified WebView2 ${browser.version()}: offline multi-tab reader with CORE-06 tabs (multi-open, duplicates, position retention, close semantics) and CORE-07 keyboard (hjkl, Ctrl+D/U/F/B, gg/G/[count]G, zoom/fit, pending keys), plus lazy pages, internal links, passwords and recovery across ${workerClosed} terminated workers. Fixture screenshots: test-results/pdf/.`);
+    console.log(`Verified WebView2 ${browser.version()}: offline multi-tab reader with CORE-06 tabs (multi-open, duplicates, position retention, close semantics), CORE-07 keyboard (hjkl, Ctrl+D/U/F/B, gg/G/[count]G, zoom/fit, pending keys) and CORE-08 outline (Tab toggle, fixture tree, destinationless expansion, named/broken jumps, no-outline fallback, sidebar relayout), plus lazy pages, internal links, passwords and recovery across ${workerClosed} terminated workers. Fixture screenshots: test-results/pdf/.`);
   } finally {
     try { await browser?.close(); } finally {
       if (app.pid && app.exitCode === null) {

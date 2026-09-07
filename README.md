@@ -1,7 +1,7 @@
-# Zathura-Inspired PDF Reader
+# Zathura
 
-A planned local, keyboard-first desktop PDF reader using **Tauri 2, TypeScript,
-Vite, and locally bundled PDF.js**, packaged with Tauri's bundler. Use **pnpm**
+A local, keyboard-first desktop PDF reader using **Tauri 2, TypeScript, Vite,
+and locally bundled PDF.js**, packaged with Tauri's bundler. Use **pnpm**
 for JavaScript dependencies and commands.
 
 ## Current Status
@@ -23,10 +23,13 @@ keyboard-driven:
 | a / s | Fit page / fit width |
 | gt / gT | Next / previous document |
 | : then q, Enter | Close the current document (`:q`) |
+| Tab | Toggle the outline / table-of-contents sidebar |
 | Ctrl+N | Toggle the status bar for full-bleed reading |
 | Escape | Clear pending keys |
 
-The Open PDFs button only shows while no document is open; press Ctrl+O any
+The sidebar lists the PDF's embedded table of contents: click a section (or
+expand a group) to jump to it; PDFs without an embedded outline say so. The
+Open PDFs button only shows while no document is open; press Ctrl+O any
 time to add more.
 
 Tabs keep one session per document (duplicate selections focus the existing

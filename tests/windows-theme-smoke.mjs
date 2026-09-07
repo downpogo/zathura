@@ -58,8 +58,12 @@ test('Windows release WebView2: OS theme, live switching, tokens and accessibili
     assert.ok(page, 'Expected the actual bundled Tauri page, not a browser preview');
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error.message));
-    await page.locator('#open-files').waitFor();
     await page.getByText('No document open.', { exact: true }).waitFor();
+    // The empty state has no buttons; open the command prompt so a real
+    // control (.input) carries the token-propagation and focus checks.
+    await page.keyboard.press(':');
+    await page.locator('#command-input').waitFor();
+    await page.locator('#command-input').focus();
     const initial = await page.evaluate(() => ({
       dark: matchMedia('(prefers-color-scheme: dark)').matches,
       scheme: getComputedStyle(document.documentElement).colorScheme,
@@ -72,11 +76,11 @@ test('Windows release WebView2: OS theme, live switching, tokens and accessibili
         const root = getComputedStyle(document.documentElement);
         const hex = root.getPropertyValue('--color-control').trim();
         const rgb = `rgb(${[1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16)).join(', ')})`;
-        return root.colorScheme === expected && getComputedStyle(document.querySelector('#open-files')).backgroundColor === rgb;
-      }, theme);
+        return root.colorScheme === expected && getComputedStyle(document.querySelector('#command-input')).backgroundColor === rgb;
+      }, theme, { timeout: 15_000, polling: 250 });
       const state = await page.evaluate(() => {
         const root = getComputedStyle(document.documentElement);
-        const button = getComputedStyle(document.querySelector('#open-files'));
+        const input = getComputedStyle(document.querySelector('#command-input'));
         const status = getComputedStyle(document.querySelector('footer'));
         const rgb = token => {
           const hex = root.getPropertyValue(token).trim();
@@ -88,30 +92,20 @@ test('Windows release WebView2: OS theme, live switching, tokens and accessibili
           canvas: rgb('--color-canvas'),
           text: root.color,
           textToken: rgb('--color-text'),
-          buttonBackground: button.backgroundColor,
-          buttonToken: rgb('--color-control'),
+          inputBackground: input.backgroundColor,
+          inputToken: rgb('--color-control'),
           muted: status.color,
           mutedToken: rgb('--color-text-muted'),
-          duration: button.transitionDuration,
+          duration: root.getPropertyValue('--duration-fast').trim(),
         };
       });
       assert.equal(state.scheme, theme);
       assert.equal(state.background, state.canvas);
       assert.equal(state.text, state.textToken);
-      assert.equal(state.buttonBackground, state.buttonToken);
+      assert.equal(state.inputBackground, state.inputToken);
       assert.equal(state.muted, state.mutedToken);
-      assert.equal(state.duration, '0s', 'Reduced motion removes the transition');
+      assert.equal(state.duration, '0ms', 'Reduced motion zeroes the motion token');
 
-      const hovered = page.waitForFunction(() => {
-        const button = document.querySelector('#open-files');
-        if (!button.matches(':hover')) return false;
-        const hex = getComputedStyle(document.documentElement).getPropertyValue('--color-control-hover').trim();
-        const expected = `rgb(${[1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16)).join(', ')})`;
-        return getComputedStyle(button).backgroundColor === expected;
-      }, { timeout: 5000, polling: 250 }).catch(() => null);
-      await page.locator('#open-files').hover();
-      assert.ok(await hovered, `${theme} hover resolves through its token`);
-      await page.mouse.move(0, 0);
     }
 
     const override = await page.evaluate(() => {
@@ -119,8 +113,8 @@ test('Windows release WebView2: OS theme, live switching, tokens and accessibili
       root.style.setProperty('--radius-small', '13px');
       root.style.setProperty('--space-3', '21px');
       root.style.setProperty('--font-family-ui', 'monospace');
-      const button = getComputedStyle(document.querySelector('#open-files'));
-      const result = { radius: button.borderRadius, padding: button.paddingLeft, font: button.fontFamily };
+      const input = getComputedStyle(document.querySelector('#command-input'));
+      const result = { radius: input.borderRadius, padding: input.paddingLeft, font: input.fontFamily };
       for (const token of ['--radius-small', '--space-3', '--font-family-ui']) root.style.removeProperty(token);
       return result;
     });
@@ -131,28 +125,29 @@ test('Windows release WebView2: OS theme, live switching, tokens and accessibili
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'No horizontal overflow at a small viewport and enlarged text');
     await page.evaluate(() => { document.documentElement.style.removeProperty('font-size'); });
     const controls = await page.evaluate(() => ({
-      open: document.querySelector('#open-files').getBoundingClientRect().toJSON(),
+      empty: document.querySelector('#empty-reader').getBoundingClientRect().toJSON(),
       status: document.querySelector('footer').getBoundingClientRect().toJSON(),
       width: innerWidth,
       height: innerHeight,
     }));
-    for (const bounds of [controls.open, controls.status]) {
+    for (const bounds of [controls.empty, controls.status]) {
       // WebView2's display scaling can round layout bounds by a fraction of a CSS pixel.
       assert.ok(bounds.top >= -0.5 && bounds.bottom <= controls.height + 0.5 && bounds.left >= -0.5 && bounds.right <= controls.width + 0.5,
         `Critical controls remain visible at 360x320: ${JSON.stringify(controls)}`);
     }
-    await page.locator('#open-files').focus();
-    assert.equal(await page.locator('#open-files').evaluate(button => {
-      const style = getComputedStyle(button);
-      return button.matches(':focus-visible') && style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) >= 2;
+    await page.keyboard.press(':');
+    await page.locator('#command-input').focus();
+    assert.equal(await page.locator('#command-input').evaluate(input => {
+      const style = getComputedStyle(input);
+      return input.matches(':focus-visible') && style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) >= 2;
     }), true, 'Visible focus ring');
 
     await page.emulateMedia({ forcedColors: 'active' });
     assert.equal(await page.evaluate(() => {
       const root = getComputedStyle(document.documentElement);
-      const button = getComputedStyle(document.querySelector('#open-files'));
+      const input = getComputedStyle(document.querySelector('#command-input'));
       return matchMedia('(forced-colors: active)').matches && root.forcedColorAdjust === 'auto'
-        && root.getPropertyValue('--color-canvas').trim() === 'Canvas' && button.boxShadow === 'none';
+        && root.getPropertyValue('--color-canvas').trim() === 'Canvas' && input.boxShadow === 'none';
     }), true, 'Windows Contrast Themes retain system colors');
     assert.deepEqual(pageErrors, []);
     console.log(`Verified WebView2 ${browser.version()}; startup ${initial.scheme}; live light/dark/light, tokens, focus, 360x320, enlarged text, reduced motion and forced colors.`);

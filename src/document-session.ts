@@ -12,6 +12,13 @@ export interface SessionState {
   readonly zoomLabel: string;
 }
 
+/** Embedded document outline; `dest` feeds navigateToDest, titles are untrusted text. */
+export interface OutlineNode {
+  readonly title: string;
+  readonly dest: unknown;
+  readonly children: readonly OutlineNode[];
+}
+
 export interface SessionHooks {
   readonly requestPassword: (reason: 'required' | 'incorrect') => Promise<string | null>;
   readonly onState: (state: SessionState) => void;
@@ -305,6 +312,39 @@ export class DocumentSession {
       ignoreDestinationZoom: false,
     });
     return true;
+  }
+
+  /** Embedded outline of the active document; failures are empty, never thrown. */
+  async outline(): Promise<readonly OutlineNode[]> {
+    const pdf = this.pdf;
+    if (!pdf || this.disposed) return [];
+    let items: unknown;
+    try {
+      items = await pdf.getOutline();
+    } catch {
+      return [];
+    }
+    if (this.disposed) return [];
+    return DocumentSession.mapOutlineItems(items);
+  }
+
+  private static mapOutlineItems(items: unknown): readonly OutlineNode[] {
+    if (!Array.isArray(items)) return [];
+    return items.filter(item => item && typeof item === 'object').map(item => {
+      const record = item as { title?: unknown; dest?: unknown; items?: unknown; url?: unknown };
+      return {
+        // External URL entries are never navigable in this reader; only dest
+        // matters, and titles are rendered as text by the UI layer.
+        title: typeof record.title === 'string' ? record.title : '',
+        dest: record.dest ?? null,
+        children: DocumentSession.mapOutlineItems(record.items),
+      };
+    });
+  }
+
+  /** Reapply fit presets after container-layout changes (e.g. the sidebar). */
+  relayout(): void {
+    this.#onWindowResize();
   }
 
   zoom(request: ZoomRequest): void {

@@ -28,6 +28,7 @@
     --size-viewport-block: 100dvh;
     --size-content-inline: 32rem;
     --size-tab-label: 16rem;
+    --size-outline: 16rem;
     --size-fluid: 100%;
     --size-dialog-inline: min(var(--size-content-inline), calc(var(--size-fluid) - var(--space-8)));
     --size-control-min: 2.25rem;

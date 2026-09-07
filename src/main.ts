@@ -1,16 +1,16 @@
 import { createReaderKeyboard, ReaderCommand } from './keyboard';
 import { DocumentSession, DocumentSessionError } from './document-session';
+import { OutlineTree } from './outline';
 import { NativeFileError, NativeFileHandle, readPdfFile, releasePdfFile, selectPdfFiles } from './native-files';
 import { TabStrip } from './tabs';
 import 'pdfjs-dist/legacy/web/pdf_viewer.css';
 import './viewer-overrides.css';
 
-const openButton = document.querySelector<HTMLButtonElement>('#open-files')!;
-const header = document.querySelector<HTMLElement>('header')!;
 const results = document.querySelector<HTMLUListElement>('#file-results')!;
 const status = document.querySelector<HTMLElement>('footer')!;
 const empty = document.querySelector<HTMLElement>('#empty-reader')!;
 const reader = document.querySelector<HTMLElement>('#reader')!;
+const outlinePanel = document.querySelector<HTMLElement>('#outline')!;
 const tabStripElement = document.querySelector<HTMLElement>('#tab-strip')!;
 const dialog = document.querySelector<HTMLDialogElement>('#password-dialog')!;
 const password = document.querySelector<HTMLInputElement>('#pdf-password')!;
@@ -37,6 +37,32 @@ const tabs = new TabStrip(tabStripElement, {
   onActivate: id => activateSession(id),
   onClose: id => closeSession(id),
 });
+
+const outlineTree = new OutlineTree(document.querySelector<HTMLElement>('#outline-tree')!, {
+  onActivate: node => {
+    const record = active;
+    if (!record) return;
+    void record.session.navigateToDest(node.dest);
+  },
+});
+let outlineVisible = false;
+
+function toggleOutline(): void {
+  if (!active) return;
+  outlineVisible = !outlineVisible;
+  outlinePanel.hidden = !outlineVisible;
+  active.session.relayout();
+  if (outlineVisible) void loadOutline();
+}
+
+async function loadOutline(): Promise<void> {
+  const record = active;
+  if (!record) return;
+  const nodes = await record.session.outline();
+  // A closed or replaced session must never repaint the sidebar.
+  if (active !== record || !outlineVisible) return;
+  outlineTree.setNodes(nodes);
+}
 
 const keyboard = createReaderKeyboard({
   execute: runCommand,
@@ -80,6 +106,7 @@ function activateSession(id: symbol): void {
   keyboard.reset();
   empty.hidden = true;
   reader.hidden = false;
+  if (outlineVisible) void loadOutline();
   renderStatus();
 }
 
@@ -116,7 +143,10 @@ function resetReader(): void {
   reader.replaceChildren();
   reader.hidden = true;
   empty.hidden = false;
-  header.hidden = false;
+  empty.focus();
+  outlineVisible = false;
+  outlinePanel.hidden = true;
+  outlineTree.reset();
   hideCommandBar();
   renderStatus();
 }
@@ -133,8 +163,7 @@ function closeActiveDocument(): void {
   } else {
     resetReader();
   }
-  openButton.disabled = false;
-  openButton.focus();
+  (active?.view ?? empty).focus();
 }
 
 function runCommand(command: ReaderCommand): void {
@@ -193,7 +222,7 @@ async function openFiles(): Promise<void> {
   if (opening) return;
   const request = Symbol('open');
   opening = request;
-  openButton.disabled = true;
+  document.body.setAttribute('data-opening', 'busy');
   const previousStatus = status.textContent;
   let openedCount = 0;
   let lastError: string | undefined;
@@ -220,11 +249,9 @@ async function openFiles(): Promise<void> {
       return;
     }
     // Lay the reader out before the first session exists: PDFViewer's render
-    // queue only paints pages in a visible container. The picker button is
-    // only for the empty state; Ctrl+O opens more documents.
+    // queue only paints pages in a visible container.
     empty.hidden = true;
     reader.hidden = false;
-    header.hidden = true;
     for (const [index, file] of files.entries()) {
       // Native identity dedup keeps one session per already-open file.
       const existing = file.alreadyOpen
@@ -281,7 +308,9 @@ async function openFiles(): Promise<void> {
   } finally {
     if (opening === request) {
       opening = undefined;
-      openButton.disabled = false;
+      if (document.body.getAttribute('data-opening') === 'busy') {
+        document.body.removeAttribute('data-opening');
+      }
     }
   }
 }
@@ -290,6 +319,7 @@ async function createSession(request: symbol, handle: NativeFileHandle, name: st
   const isCurrent = () => opening === request && abandoned !== request && creating === request;
   const view = document.createElement('div');
   view.className = 'session-view';
+  view.tabIndex = -1;
   reader.append(view);
   creating = request;
   // Declared up-front: session callbacks fire during create() and must not
@@ -364,7 +394,6 @@ commandInput.addEventListener('keydown', event => {
   }
 });
 commandInput.addEventListener('blur', () => hideCommandBar());
-openButton.addEventListener('click', () => { void openFiles(); });
 window.addEventListener('blur', () => keyboard.reset());
 document.addEventListener('keydown', event => {
   if (dialog.open) return;
@@ -385,6 +414,17 @@ document.addEventListener('keydown', event => {
     // Full-bleed reading: toggle the status bar.
     event.preventDefault();
     status.hidden = !status.hidden;
+    return;
+  }
+  const target = event.target;
+  const editable = target instanceof HTMLElement
+    && target.matches('input, textarea, select, [contenteditable="true"], [contenteditable=""]');
+  if (event.key === 'Tab' && !event.ctrlKey && !event.metaKey && !event.altKey
+      && !event.isComposing && !event.repeat && active && !editable) {
+    // From reading context, Tab toggles the outline sidebar; dialogs and
+    // editable fields keep ordinary focus traversal.
+    event.preventDefault();
+    toggleOutline();
     return;
   }
   if (keyboard.handle(event) === 'handled') event.preventDefault();

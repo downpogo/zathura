@@ -6,6 +6,7 @@ export default workerUrl;
 
 export const stub = {
   numPages: 5,
+  pdfOutline: undefined,
   destinations: new Map(),
   cachedPageNumbers: new Map(),
   pageIndexes: new Map(),
@@ -27,6 +28,7 @@ export const stub = {
 
 export function resetStub() {
   stub.numPages = 5;
+  stub.pdfOutline = undefined;
   stub.destinations = new Map();
   stub.cachedPageNumbers = new Map();
   stub.pageIndexes = new Map();
@@ -182,6 +184,13 @@ export const PDFWorker = {
 function makePdf() {
   const pdf = {
     numPages: stub.numPages,
+    getOutlineCalls: 0,
+    getOutline: async () => {
+      pdf.getOutlineCalls += 1;
+      const value = stub.pdfOutline;
+      if (value instanceof Error) throw value;
+      return value ?? null;
+    },
     getDestinationCalls: [],
     getDestination: async name => {
       pdf.getDestinationCalls.push(name);

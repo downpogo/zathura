@@ -19,7 +19,11 @@
 
   body {
     margin: var(--space-0);
-    min-block-size: var(--size-viewport-block);
+    /* The app column is exactly the viewport: the document never scrolls, so
+       long outline trees scroll inside #outline instead of growing the page
+       and showing a window-level scrollbar. */
+    block-size: var(--size-viewport-block);
+    overflow: hidden;
     display: flex;
     flex-direction: column;
   }
@@ -163,37 +167,130 @@
     position: relative;
     flex: 1;
     min-inline-size: var(--space-0);
+    /* Allow the flex layout to shrink main to the viewport: the outline
+       sidebar and session views scroll internally instead of growing the app. */
+    min-block-size: var(--space-0);
     display: grid;
     place-items: center;
     padding: var(--space-6);
   }
 
-  /* Document mode replaces the centered empty state; each session view is a
-     scroll container. Inactive views stay laid out (visibility, not display)
-     so scroll position and rendered pages persist while nothing new renders. */
+  /* Document mode replaces the centered empty state; the optional outline
+     sidebar shrinks the reader, and each session view is a scroll container.
+     Inactive views stay laid out (visibility, not display) so scroll position
+     and rendered pages persist while nothing new renders. */
   main:has(#reader:not([hidden])) {
-    display: block;
+    display: flex;
+    align-items: stretch;
     padding: var(--space-0);
   }
 
+  #outline {
+    inline-size: var(--size-outline);
+    flex: none;
+    display: grid;
+    align-content: start;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border-inline-end: var(--border-width) solid var(--color-border);
+    background-color: var(--color-surface);
+    overflow: auto;
+  }
+
+  #outline h2 {
+    font-size: var(--font-size-body);
+  }
+
+  .outline-list {
+    margin: var(--space-0);
+    padding: var(--space-0);
+    display: grid;
+    justify-items: start;
+    gap: var(--space-1);
+  }
+
+  .outline-list .outline-list {
+    padding-inline-start: var(--space-4);
+  }
+
+  .outline-entry {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .outline-list:has(.outline-expander) > .outline-entry .outline-row {
+    grid-column: 2;
+  }
+
+  .outline-entry .outline-list { grid-column: 1 / -1; }
+
+  .outline-row {
+    display: block;
+    padding: var(--space-1) var(--space-2);
+    border: none;
+    border-radius: var(--radius-small);
+    color: var(--color-text);
+    background-color: transparent;
+    text-align: start;
+    font-size: var(--font-size-small);
+    overflow-wrap: anywhere;
+  }
+
+  .outline-row:not(:disabled):hover { background-color: var(--color-control-hover); }
+
+  .outline-row:disabled {
+    color: var(--color-text-disabled);
+    cursor: default;
+  }
+
+  .outline-expander {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: var(--size-icon);
+    min-inline-size: var(--size-icon);
+    padding: var(--space-0);
+    border: none;
+    border-radius: var(--radius-small);
+    color: var(--color-text-muted);
+    background-color: transparent;
+  }
+
+  .outline-expander:hover { background-color: var(--color-control-hover); }
+
+  .outline-empty {
+    margin: var(--space-0);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-small);
+  }
+
   #reader {
-    position: absolute;
-    inset: var(--space-0);
+    position: relative;
+    flex: 1;
+    min-inline-size: var(--space-0);
     overflow: hidden;
     background-color: var(--color-canvas);
   }
+
+  /* Overlay-free scrolling app-wide: the reader, outline sidebar and tab
+     strip scroll via wheel/keys without a layout-shifting scrollbar. */
+  #outline,
+  #tab-strip,
+  .session-view {
+    scrollbar-width: none;
+  }
+
+  #outline::-webkit-scrollbar,
+  #tab-strip::-webkit-scrollbar,
+  .session-view::-webkit-scrollbar { display: none; }
 
   .session-view {
     position: absolute;
     inset: var(--space-0);
     overflow: auto;
-    /* Overlay-free scrolling keeps the viewport width stable: fit-width can
-       span the full client width without a late scrollbar shrinking it and
-       causing horizontal overflow. Keys and wheel still scroll. */
-    scrollbar-width: none;
   }
-
-  .session-view::-webkit-scrollbar { display: none; }
 
   .session-view:not(.active-view) {
     visibility: hidden;

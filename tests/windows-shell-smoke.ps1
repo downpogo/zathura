@@ -26,7 +26,7 @@ try {
         $names = @($nodes | ForEach-Object { $_.Current.Name })
     } while (($names -notcontains "No document open.") -and ([DateTime]::UtcNow -lt $deadline))
 
-    if ($app.MainWindowTitle -ne "Local PDF Reader") { throw "Unexpected window title" }
+    if ($app.MainWindowTitle -ne "Zathura") { throw "Unexpected window title" }
     if (-not $app.Responding) { throw "Reader is not responding" }
     if ($names -notcontains "No document open.") { throw "Bundled reader content did not load" }
     if (-not $app.CloseMainWindow()) { throw "Window close failed" }

@@ -399,6 +399,25 @@ and modifier conflicts; native-webview shortcut smoke tests.
 
 ## CORE-08: Table Of Contents And Destinations
 
+Owner: OpenCode / gpt-6-astra, 2026-09-07
+Status: done (Windows verified)
+Changed files: src/document-session.ts (outline()/relayout()), src/outline.ts,
+src/main.ts, index.html, src/style.css, src/tokens.css,
+tests/document-session.test.mjs, tests/helpers/session-stub.mjs,
+tests/windows-pdf-smoke.mjs, docs/verification/core-08.md.
+Decisions / interface changes: Tab toggles the sidebar from reading context;
+outline nodes are plain {title, dest, children} with external URLs dropped;
+destination resolution goes through the sanitized navigateToDest; no-outline
+PDFs show exactly 'This PDF has no table of contents.'; ARIA tree pattern
+(tree/treeitem/group); sidebar relayouts fit modes.
+Verification: WSL 73/73; Windows full suite, release build, and native offline
+smoke (tree order with literal titles, destinationless expansion, named jump
+to page 3, broken-destination feedback, no-outline fallback, fit reflow with
+sidebar open) pass in WebView2 152.0.4191.66. See docs/verification/core-08.md.
+Remaining blockers / unverified platforms: macOS/WebKitGTK unverified; tree
+keyboard ops and current-item highlight are CORE-09; no outline
+virtualization (revisit under CORE-10 if measured).
+
 **Depends on:** CORE-05.
 
 **Scope:** Display the active PDF's embedded outline in a collapsible tree and

@@ -5,17 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="color-scheme" content="light dark" />
     <link rel="stylesheet" href="/src/style.css" />
-    <title>Local PDF Reader</title>
+    <title>Zathura</title>
   </head>
   <body>
-    <header>
-      <button id="open-files" class="button" type="button">Open PDFs</button>
-    </header>
     <nav id="tab-strip" role="tablist" aria-label="Open documents" hidden></nav>
     <main aria-labelledby="reader-title">
-      <section id="empty-reader" class="empty-reader">
-        <h1 id="reader-title">Local PDF Reader</h1>
+      <aside id="outline" hidden aria-labelledby="outline-title">
+        <h2 id="outline-title">Contents</h2>
+        <div id="outline-tree"></div>
+      </aside>
+      <section id="empty-reader" class="empty-reader" tabindex="-1">
+        <h1 id="reader-title">Zathura</h1>
         <p>No document open.</p>
+        <p>Press Ctrl+O to open a PDF.</p>
       </section>
       <div id="reader" aria-label="PDF document" hidden></div>
     </main>

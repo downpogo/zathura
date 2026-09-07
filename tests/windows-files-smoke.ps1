@@ -26,10 +26,28 @@ function Find-Named($parent, [string]$name) {
         [System.Windows.Automation.PropertyCondition]::new(
             [System.Windows.Automation.AutomationElement]::NameProperty, $name))
 }
+function Wait-TextStart([string]$prefix) {
+    $deadline = [DateTime]::UtcNow.AddSeconds(20)
+    do {
+        Start-Sleep -Milliseconds 250
+        $script:app.Refresh()
+        if ($script:app.HasExited) { throw 'Test app exited' }
+        $script:reader = [System.Windows.Automation.AutomationElement]::FromHandle($script:app.MainWindowHandle)
+        $nodes = $script:reader.FindAll([System.Windows.Automation.TreeScope]::Descendants,
+            [System.Windows.Automation.Condition]::TrueCondition)
+        foreach ($node in $nodes) {
+            if ($node.Current.Name -like ($prefix + '*')) { return }
+        }
+    } while ([DateTime]::UtcNow -lt $deadline)
+    throw "Expected app text not found: $prefix"
+}
 function Wait-Text([string]$text) {
     $deadline = [DateTime]::UtcNow.AddSeconds(20)
     do {
         Start-Sleep -Milliseconds 250
+        $script:app.Refresh()
+        if ($script:app.HasExited) { throw 'Test app exited' }
+        $script:reader = [System.Windows.Automation.AutomationElement]::FromHandle($script:app.MainWindowHandle)
         $node = Find-Named $script:reader $text
         if ($null -ne $node) { return }
     } while ([DateTime]::UtcNow -lt $deadline)
@@ -107,27 +125,29 @@ try {
     $app.Refresh()
     $reader = [System.Windows.Automation.AutomationElement]::FromHandle($app.MainWindowHandle)
     Wait-Text 'No document open.'
-    $open = Find-Named $reader 'Open PDFs'
-    ([System.Windows.Automation.InvokePattern]$open.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)).Invoke()
+    Wait-Text 'Press Ctrl+O to open a PDF.'
+    [SmokeFocus]::SetForegroundWindow($app.MainWindowHandle) | Out-Null
+    Start-Sleep -Milliseconds 250
+    Send-AppKeys '^o'
     Wait-Picker
     $basic = [System.IO.Path]::GetFullPath("$Root\fixtures\pdfs\basic.pdf")
     $navigation = [System.IO.Path]::GetFullPath("$Root\fixtures\pdfs\navigation.pdf")
     Set-PickerFiles @($basic, $navigation)
     Click-PickerButton '1'
-    Wait-Text 'basic.pdf: read 756 bytes.'
-    Wait-Text 'navigation.pdf: read 3619 bytes.'
-    Wait-Text 'Read 2 PDF file(s). Rendering is not implemented yet.'
-    [SmokeFocus]::SetForegroundWindow($app.MainWindowHandle) | Out-Null
-    Start-Sleep -Milliseconds 250
+    Wait-TextStart 'basic.pdf | Page 1 of 1 | '
+    Wait-TextStart 'navigation.pdf'
     Send-AppKeys '^o'
     Wait-Picker
     Click-PickerButton '2'
-    Wait-Text 'Read 2 PDF file(s). Rendering is not implemented yet.'
-    Wait-Text 'basic.pdf: read 756 bytes.'
-    Wait-Text 'navigation.pdf: read 3619 bytes.'
+    Wait-TextStart 'basic.pdf | Page 1 of 1 | '
+    Send-AppKeys ':'
+    Wait-Text 'Command'
+    Send-AppKeys 'q'
+    Send-AppKeys '{ENTER}'
+    Wait-Text 'No document open.'
     if (-not $app.CloseMainWindow()) { throw 'Close failed' }
     if (-not $app.WaitForExit(5000)) { throw 'App did not exit' }
-    'PASS: native button, owned multiselect picker, two binary reads, Ctrl+O, cancellation preserves results, close'
+    'PASS: Ctrl+O picker, multi-tab open, cancellation preserves tabs, :q close, clean exit'
 } finally {
     $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $oldArguments
     if ($null -ne $app) {

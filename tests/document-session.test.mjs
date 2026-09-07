@@ -320,6 +320,70 @@ test('disposing mid-flight cancels navigation without error feedback', async () 
   assert.deepEqual(errors, []);
 });
 
+test('outline() maps nested items, filters junk and tolerates missing fields', async () => {
+  resetStub();
+  const { session } = await createReadySession();
+  const pdf = stub.pdfs[0];
+  const direct = [{ num: 1 }, { name: 'XYZ' }];
+  const integerDest = [2, { name: 'Fit' }];
+  stub.pdfOutline = [
+    { title: 'Chapter 1', dest: direct, items: [
+      { title: 'Section 1.1', dest: 'chapter-three', items: [] },
+      'junk', 42, null, false,
+      { dest: integerDest },
+      { title: 'Bad items', items: 'not-an-array' },
+    ] },
+    7, null, 'nope', true,
+    { title: 'Group without destination' },
+    { title: '', dest: null },
+  ];
+  assert.deepEqual(await session.outline(), [
+    {
+      title: 'Chapter 1',
+      dest: direct,
+      children: [
+        { title: 'Section 1.1', dest: 'chapter-three', children: [] },
+        { title: '', dest: integerDest, children: [] },
+        { title: 'Bad items', dest: null, children: [] },
+      ],
+    },
+    { title: 'Group without destination', dest: null, children: [] },
+    { title: '', dest: null, children: [] },
+  ]);
+  assert.equal(pdf.getOutlineCalls, 1);
+});
+
+test('a rejecting getOutline resolves to an empty outline instead of throwing', async () => {
+  resetStub();
+  const { session } = await createReadySession();
+  stub.pdfOutline = new Error('secret outline failure');
+  assert.deepEqual(await session.outline(), []);
+  stub.pdfOutline = null;
+  assert.deepEqual(await session.outline(), []);
+});
+
+test('disposing mid-flight resolves outline() to [] and never maps late items', async () => {
+  resetStub();
+  const { session } = await createReadySession();
+  let release;
+  stub.pdfOutline = new Promise(resolve => { release = resolve; });
+  const pending = session.outline();
+  await session.dispose();
+  release([{ title: 'Late chapter', dest: [{ num: 1 }, { name: 'XYZ' }], items: [] }]);
+  assert.deepEqual(await pending, []);
+  assert.deepEqual(await session.outline(), []);
+});
+
+test('outline() on a disposed session is empty without touching getOutline', async () => {
+  resetStub();
+  const { session } = await createReadySession();
+  const pdf = stub.pdfs[0];
+  await session.dispose();
+  stub.pdfOutline = [{ title: 'Should never load', dest: null }];
+  assert.deepEqual(await session.outline(), []);
+  assert.equal(pdf.getOutlineCalls, 0);
+});
+
 test('zoom requests map to the matching viewer operations', async () => {
   resetStub();
   const { session } = await createReadySession();
@@ -365,6 +429,30 @@ test('window resize reapplies fit presets only', async () => {
   viewer.currentScaleValue = 'page-width';
   resize.listener();
   assert.deepEqual(stub.scaleValueSets.at(-1), { viewer, value: 'page-width' });
+});
+
+test('relayout reapplies fit presets only, mirroring a window resize', async () => {
+  resetStub();
+  const { session } = await createReadySession();
+  const viewer = stub.viewers[0];
+  viewer.currentScaleValue = 'page-width';
+  session.relayout();
+  assert.deepEqual(stub.scaleValueSets.at(-1), { viewer, value: 'page-width' });
+  viewer.currentScaleValue = 'page-fit';
+  session.relayout();
+  assert.deepEqual(stub.scaleValueSets.at(-1), { viewer, value: 'page-fit' });
+  viewer.currentScaleValue = 1.25;
+  session.relayout();
+  assert.deepEqual(stub.scaleValueSets.at(-1), { viewer, value: 1.25 });
+  await session.dispose();
+  const setsBefore = stub.scaleValueSets.filter(entry => entry.viewer === viewer).length;
+  viewer.currentScaleValue = 'page-width';
+  session.relayout();
+  assert.equal(
+    stub.scaleValueSets.filter(entry => entry.viewer === viewer).length,
+    setsBefore + 1,
+    'A disposed session no longer reapplies presets',
+  );
 });
 
 test('a worker error terminates the worker within the bounded grace period', async t => {
