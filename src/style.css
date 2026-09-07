@@ -418,5 +418,49 @@
     flex: none;
     font-family: var(--font-family-mono);
   }
+
+  /* ':waifu' dance overlay: a chromeless looping sprite parked in the
+     corners. It never intercepts input and stays out of the a11y tree; all
+     interaction stays with the reader underneath. */
+  .waifu {
+    position: fixed;
+    inset-block-start: var(--space-3);
+    inset-inline-start: var(--space-3);
+    z-index: var(--layer-popover);
+    inline-size: var(--size-waifu-inline);
+    pointer-events: none;
+    /* The dance ignores the OS reduced-motion preference: the overlay only
+       exists as an explicit user opt-in, and its duration token deliberately
+       avoids the --duration-* names that reduced motion zeroes. */
+    animation: waifu-tour var(--waifu-tour-duration) infinite;
+  }
+
+  .waifu img {
+    display: block;
+    inline-size: var(--size-fluid);
+  }
+
+  /* Park ~22% of the tour in each corner (about one full dance loop of the
+     ~4.1s cutout WebP), then glide to the next corner. Timing functions sit on
+     the hold-end keyframes so only the glides ease; holds are invisible. */
+  @keyframes waifu-tour {
+    0%, 22% {
+      transform: translate(0, 0);
+      animation-timing-function: var(--ease-standard);
+    }
+    25%, 47% {
+      transform: translate(var(--waifu-tour-x), 0);
+      animation-timing-function: var(--ease-standard);
+    }
+    50%, 72% {
+      transform: translate(var(--waifu-tour-x), var(--waifu-tour-y));
+      animation-timing-function: var(--ease-standard);
+    }
+    75%, 97% {
+      transform: translate(0, var(--waifu-tour-y));
+      animation-timing-function: var(--ease-standard);
+    }
+    100% { transform: translate(0, 0); }
+  }
 }
 

@@ -24,6 +24,7 @@ keyboard-driven:
 | Ctrl+L | List open documents; j/k or arrows + Enter to switch |
 | gt / gT | Next / previous document |
 | : then q, Enter | Close the current document (`:q`) |
+| : then waifu, Enter | Toggle the dancing waifu (`:waifu`) |
 | Tab | Toggle the outline / table-of-contents sidebar |
 | Ctrl+N | Toggle the status bar for full-bleed reading |
 | Ctrl+R | Toggle light / dark theme (remembers your choice) |

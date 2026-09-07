@@ -35,6 +35,14 @@
     --size-dialog-inline: min(var(--size-content-inline), calc(var(--size-fluid) - var(--space-8)));
     --size-control-min: 2.25rem;
     --size-icon: 1.125rem;
+
+    /* ':waifu' dance overlay. The tour distance is the viewport minus the
+       card so translate(0,0)-to-(x,y) spans exactly the four screen corners
+       with the same gutter the app chrome uses. */
+    --size-waifu-inline: min(11.25rem, 30dvh);
+    --size-waifu-block: calc(var(--size-waifu-inline) * 16 / 9);
+    --waifu-tour-x: calc(100vw - var(--size-waifu-inline) - var(--space-6));
+    --waifu-tour-y: calc(var(--size-viewport-block) - var(--size-waifu-block) - var(--space-6));
     --radius-small: 0;
     --radius-medium: 0;
     --radius-large: 0;
@@ -45,6 +53,11 @@
     --shadow-offset: 0 1px 2px;
     --shadow-control: var(--shadow-offset) var(--color-shadow);
     --duration-fast: 120ms;
+    /* ':waifu' tour length, not a --duration-* token: the waifu is an explicit
+       opt-in and must keep dancing when reduced motion zeroes chrome motion.
+       One corner park (~3.7s) is about one full dance loop of the ~4.1s
+       cutout WebP, so the tour finishes whole dances before each glide. */
+    --waifu-tour-duration: 17s;
     --ease-standard: cubic-bezier(0.2, 0, 0, 1);
     --layer-base: 0;
     --layer-popover: 10;

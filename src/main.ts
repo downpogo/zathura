@@ -3,6 +3,7 @@ import { DocumentSession, DocumentSessionError } from './document-session';
 import { OutlineTree } from './outline';
 import { NativeFileError, NativeFileHandle, readPdfFile, releasePdfFile, selectPdfFiles } from './native-files';
 import { ReadingPrefs } from './prefs';
+import { toggleWaifu } from './waifu';
 import 'pdfjs-dist/legacy/web/pdf_viewer.css';
 import './viewer-overrides.css';
 
@@ -548,6 +549,10 @@ function runUserCommand(raw: string): void {
     // Restore the cleared defaults so state and UI agree immediately.
     status.hidden = false;
     document.documentElement.removeAttribute('data-theme');
+    return;
+  }
+  if (command === 'waifu') {
+    showStatusMessage(toggleWaifu() ? 'Waifu arrived.' : 'Waifu waved goodbye.', 4000);
     return;
   }
   showStatusMessage(`Unknown command: ${command}`, 4000);
