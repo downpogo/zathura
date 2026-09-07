@@ -300,11 +300,33 @@
   }
 
   .empty-reader {
+    position: relative;
+    min-inline-size: var(--space-0);
+    max-inline-size: var(--size-content-inline);
+    display: grid;
+    justify-items: center;
+    gap: var(--space-3);
+    overflow-wrap: anywhere;
+    padding-block: var(--space-8);
+    text-align: center;
+  }
+
+  .empty-reader {
     min-inline-size: var(--space-0);
     max-inline-size: var(--size-content-inline);
     display: grid;
     gap: var(--space-3);
     overflow-wrap: anywhere;
+  }
+
+  .empty-banner {
+    display: block;
+    margin-block-end: var(--space-4);
+    white-space: pre;
+    font-family: var(--font-family-mono);
+    font-size: var(--font-size-small);
+    line-height: var(--line-height-banner);
+    color: var(--color-accent);
   }
 
   /* display:grid would override the UA's closed-dialog none, so scope the
