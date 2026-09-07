@@ -26,6 +26,7 @@ keyboard-driven:
 | : then q, Enter | Close the current document (`:q`) |
 | Tab | Toggle the outline / table-of-contents sidebar |
 | Ctrl+N | Toggle the status bar for full-bleed reading |
+| Ctrl+R | Toggle light / dark theme (remembers your choice) |
 | Escape | Clear pending keys |
 
 The sidebar lists the PDF's embedded table of contents: click a section (or
@@ -33,10 +34,11 @@ expand a group) to jump to it; PDFs without an embedded outline say so.
 Multiple documents are managed invisibly — Ctrl+L lists the open ones on
 demand.
 
-**Zathura remembers**: your status-bar preference and each document's last
-page and zoom (keyed by file content, never paths), restored when you reopen
-the same file. Use `:clear-history` in the command prompt to forget
-everything. Press Ctrl+O any time to add more PDFs.
+**Zathura remembers**: your status-bar and theme preferences and each
+document's last page and zoom (keyed by file content, never paths), restored
+when you reopen the same file. Use `:clear-history` in the command prompt to
+forget everything and follow the OS theme again. Press Ctrl+O any time to add
+more PDFs.
 
 Tabs keep one session per document (duplicate selections focus the existing
 tab), positions persist while switching, and password retry/cancel plus

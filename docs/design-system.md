@@ -7,11 +7,15 @@ application script so theme selection does not depend on JavaScript startup.
 
 ## Theme Policy
 
-The default `:root` palette is light. `prefers-color-scheme: dark` replaces every
-color token and selects the dark `color-scheme` for browser-rendered controls.
-The OS preference is the source of truth, including changes while the app is
-open. There is no manual theme toggle, stored theme preference, or startup script
-that chooses a palette. Do not add theme classes, inline styles, or TS palettes.
+Every color token is a single `light-dark(light, dark)` pair and
+`--theme-color-scheme` defaults to `light dark`, so colors and browser-rendered
+controls follow the OS `prefers-color-scheme` live, including changes while the
+app is open. Ctrl+R pins the opposite scheme by setting `data-theme` on `:root`
+(re-pointing `--theme-color-scheme` to `light` or `dark`) and persists the
+choice; `:clear-history` removes the pin and returns to following the OS.
+Theme switching never uses theme classes, inline styles, TS palettes, or
+startup scripts that choose a palette — only the `data-theme` attribute and
+the `color-scheme` cascade.
 
 `forced-colors: active` replaces semantic colors with system colors and removes
 the control shadow. Do not disable forced-color adjustment. Keyboard focus uses
@@ -32,7 +36,7 @@ Coarse pointers increase the minimum control size via a token override.
 | Colors | `--color-canvas`, `--color-surface`, `--color-text`, `--color-text-muted` | Shell surfaces and text |
 | Interaction colors | `--color-control`, `--color-control-hover`, `--color-control-active`, `--color-border-control`, `--color-focus` | Control states and visible boundaries |
 | Other semantic colors | `--color-text-disabled`, `--color-selection`, `--color-on-selection`, `--color-accent`, `--color-danger`, `--color-shadow` | Disabled, selected, accented, error, shadow roles |
-| Browser theme | `--theme-color-scheme` | Browser-rendered control appearance |
+| Browser theme | `--theme-color-scheme` | Which side of every `light-dark()` pair resolves, for shell colors and browser-rendered controls |
 
 `--color-border` is a subtle decorative separator. Use
 `--color-border-control` when a boundary is needed to identify an interactive
@@ -64,8 +68,9 @@ the `solid` border style can remain literal. A `var()` elsewhere in a declaratio
 does not excuse a hardcoded design value in the same declaration.
 
 Add a token only when the existing roles do not express the need. Define it on
-the default `:root`; add every new color to both the dark and forced-colors
-overrides. References must resolve without cycles in all modes. Components use
+the default `:root` as one `light-dark()` pair covering both schemes; forced
+colors override tokens with system colors. References must resolve without
+cycles in all modes. Components use
 the same token names in both themes, rather than maintaining their own palettes.
 Add contrast pairs to the tests when introducing new foreground/background
 combinations. Normal text must reach 4.5:1; focus and identifying control borders

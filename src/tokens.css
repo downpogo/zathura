@@ -49,52 +49,36 @@
     --layer-popover: 10;
     --layer-dialog: 20;
 
-    /* Tokyo Night Day (folke/tokyonight.nvim); text shades darkened for WCAG contrast */
-    --theme-color-scheme: light;
-    --color-canvas: #d0d5e3;
-    --color-surface: #e1e2e7;
-    --color-text: #26418a;
-    --color-text-muted: #3f5196;
-    --color-border: #c4c8da;
-    --color-border-control: #46517d;
-    --color-control: #d0d5e3;
-    --color-control-hover: #c4c8da;
-    --color-control-active: #b7c1e3;
-    --color-control-disabled: #d5d9e4;
-    --color-text-disabled: #4f587f;
-    --color-accent: #1b4fae;
-    --color-focus: #1b4fae;
-    --color-selection: #b7c1e3;
-    --color-on-selection: #26418a;
-    --color-danger: #a32d28;
-    --color-shadow: #1a1b261f;
-    --color-overlay: #1a1b2666;
+    /* Tokyo Night Day/Night (folke/tokyonight.nvim); text shades tuned for
+       WCAG contrast. light-dark() resolves per color-scheme: the value follows
+       the OS by default, and Ctrl+R pins it through the data-theme overrides
+       below. Light value first, dark value second. */
+    --theme-color-scheme: light dark;
+    --color-canvas: light-dark(#d0d5e3, #16161e);
+    --color-surface: light-dark(#e1e2e7, #1a1b26);
+    --color-text: light-dark(#26418a, #c0caf5);
+    --color-text-muted: light-dark(#3f5196, #a9b1d6);
+    --color-border: light-dark(#c4c8da, #3b4261);
+    --color-border-control: light-dark(#46517d, #8f97c0);
+    --color-control: light-dark(#d0d5e3, #292e42);
+    --color-control-hover: light-dark(#c4c8da, #3b4261);
+    --color-control-active: light-dark(#b7c1e3, #414868);
+    --color-control-disabled: light-dark(#d5d9e4, #1a1b26);
+    --color-text-disabled: light-dark(#4f587f, #8189ab);
+    --color-accent: light-dark(#1b4fae, #7aa2f7);
+    --color-focus: light-dark(#1b4fae, #7aa2f7);
+    --color-selection: light-dark(#b7c1e3, #283457);
+    --color-on-selection: light-dark(#26418a, #c0caf5);
+    --color-danger: light-dark(#a32d28, #f7768e);
+    --color-shadow: light-dark(#1a1b261f, #00000066);
+    --color-overlay: light-dark(#1a1b2666, #00000099);
   }
 
-  @media (prefers-color-scheme: dark) {
-    :root {
-      /* Tokyo Night Night (folke/tokyonight.nvim) */
-      --theme-color-scheme: dark;
-      --color-canvas: #16161e;
-      --color-surface: #1a1b26;
-      --color-text: #c0caf5;
-      --color-text-muted: #a9b1d6;
-      --color-border: #3b4261;
-      --color-border-control: #8f97c0;
-      --color-control: #292e42;
-      --color-control-hover: #3b4261;
-      --color-control-active: #414868;
-      --color-control-disabled: #1a1b26;
-      --color-text-disabled: #8189ab;
-      --color-accent: #7aa2f7;
-      --color-focus: #7aa2f7;
-      --color-selection: #283457;
-      --color-on-selection: #c0caf5;
-      --color-danger: #f7768e;
-      --color-shadow: #00000066;
-      --color-overlay: #00000099;
-    }
-  }
+  /* An explicit theme pin from Ctrl+R overrides the OS preference; without
+     the attribute the unpinned `light dark` value follows it live. */
+  :root[data-theme='dark'] { --theme-color-scheme: dark; }
+
+  :root[data-theme='light'] { --theme-color-scheme: light; }
 
   @media (pointer: coarse) {
     :root { --size-control-min: 2.75rem; }

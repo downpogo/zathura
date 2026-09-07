@@ -101,8 +101,21 @@ async function loadOutline(): Promise<void> {
   outlineTree.setNodes(nodes);
 }
 
-// Restore the remembered status-bar visibility before any UI paints state.
+// Restore remembered shell state before any UI paints: a pinned theme avoids
+// a wrong-scheme flash and the status bar restores its visibility.
+const savedTheme = prefs.theme();
+if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
 status.hidden = prefs.statusBarHidden();
+
+/** Flip between light and dark, pinning the choice over the OS preference. */
+function toggleTheme(): void {
+  const root = document.documentElement;
+  const current = root.getAttribute('data-theme')
+    ?? (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  const next = current === 'dark' ? 'light' : 'dark';
+  root.setAttribute('data-theme', next);
+  prefs.setTheme(next);
+}
 
 const keyboard = createReaderKeyboard({
   execute: runCommand,
@@ -509,8 +522,9 @@ function runUserCommand(raw: string): void {
     for (const timer of pendingSaves.values()) clearTimeout(timer);
     pendingSaves.clear();
     prefs.clear();
-    // Restore the cleared default so state and UI agree immediately.
+    // Restore the cleared defaults so state and UI agree immediately.
     status.hidden = false;
+    document.documentElement.removeAttribute('data-theme');
     feedback('Reading history cleared.');
     return;
   }
@@ -555,6 +569,13 @@ document.addEventListener('keydown', event => {
       && !event.isComposing && !event.repeat) {
     event.preventDefault();
     showCommandBar();
+    return;
+  }
+  if ((event.ctrlKey !== event.metaKey) && !event.altKey && !event.shiftKey
+      && !event.isComposing && !event.repeat && event.key.toLowerCase() === 'r') {
+    // Ctrl+R pins the opposite theme (and suppresses the browser reload).
+    event.preventDefault();
+    toggleTheme();
     return;
   }
   if ((event.ctrlKey !== event.metaKey) && !event.altKey && !event.shiftKey

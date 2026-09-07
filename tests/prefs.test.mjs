@@ -29,6 +29,22 @@ test('status bar visibility persists', () => {
   assert.equal(prefs.statusBarHidden(), false);
 });
 
+test('theme pin persists and invalid values recover to unpinned', () => {
+  const storage = memoryStorage();
+  const prefs = new ReadingPrefs(storage);
+  assert.equal(prefs.theme(), undefined);
+  prefs.setTheme('dark');
+  assert.equal(prefs.theme(), 'dark');
+  assert.equal(new ReadingPrefs(storage).theme(), 'dark');
+  prefs.setTheme('light');
+  assert.equal(prefs.theme(), 'light');
+
+  const badTheme = JSON.stringify({ statusBarHidden: false, theme: 'blue', documents: {} });
+  const recovered = new ReadingPrefs(memoryStorage(new Map([[PREFERENCES_KEY, badTheme]])));
+  assert.equal(recovered.theme(), undefined);
+  assert.deepEqual(recovered.load(), { statusBarHidden: false, documents: {} });
+});
+
 test('document state round-trips under a content key', () => {
   const storage = memoryStorage();
   const prefs = new ReadingPrefs(storage);

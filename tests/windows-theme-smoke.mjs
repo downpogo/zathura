@@ -82,8 +82,15 @@ test('Windows release WebView2: OS theme, live switching, tokens and accessibili
         const root = getComputedStyle(document.documentElement);
         const input = getComputedStyle(document.querySelector('#command-input'));
         const status = getComputedStyle(document.querySelector('footer'));
+        // Tokens hold light-dark() pairs; resolve against the effective
+        // scheme: a data-theme pin wins over the OS preference.
         const rgb = token => {
-          const hex = root.getPropertyValue(token).trim();
+          const pair = root.getPropertyValue(token).trim();
+          const match = pair.match(/^light-dark\(\s*(#[0-9a-f]{6,8})\s*,\s*(#[0-9a-f]{6,8})\s*\)$/);
+          if (!match) throw new Error(`${token} is not a light-dark() pair: ${pair}`);
+          const pinned = document.documentElement.getAttribute('data-theme');
+          const dark = pinned ? pinned === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+          const hex = dark ? match[2] : match[1];
           return `rgb(${[1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16)).join(', ')})`;
         };
         return {
@@ -106,6 +113,28 @@ test('Windows release WebView2: OS theme, live switching, tokens and accessibili
       assert.equal(state.muted, state.mutedToken);
       assert.equal(state.duration, '0ms', 'Reduced motion zeroes the motion token');
 
+    }
+
+    // Ctrl+R pins the opposite theme over the OS preference; the loop above
+    // ended on emulated light, so the first press must pin dark.
+    for (const [expectedAttr, expectedScheme] of [['dark', 'dark'], ['light', 'light']]) {
+      await page.keyboard.press('Control+r');
+      await page.waitForFunction(expected => {
+        const root = document.documentElement;
+        return root.getAttribute('data-theme') === expected
+          && getComputedStyle(root).colorScheme === expected;
+      }, expectedAttr, { timeout: 15_000, polling: 250 });
+      const pinned = await page.evaluate(() => {
+        const root = getComputedStyle(document.documentElement);
+        const pair = root.getPropertyValue('--color-canvas').trim();
+        const match = pair.match(/^light-dark\(\s*(#[0-9a-f]{6,8})\s*,\s*(#[0-9a-f]{6,8})\s*\)$/);
+        if (!match) throw new Error(`--color-canvas is not a light-dark() pair: ${pair}`);
+        const pinned = document.documentElement.getAttribute('data-theme');
+        const hex = pinned === 'dark' ? match[2] : match[1];
+        return `rgb(${[1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16)).join(', ')})`;
+      });
+      assert.equal(await page.evaluate(() => getComputedStyle(document.body).backgroundColor), pinned,
+        `Pinned ${expectedAttr} theme must recolor the shell`);
     }
 
     const override = await page.evaluate(() => {

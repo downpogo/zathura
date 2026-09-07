@@ -5,8 +5,12 @@ export interface DocumentReadingState {
   zoom: string;
 }
 
+/** Explicit theme pin; absent means follow the OS preference. */
+export type ThemePreference = 'light' | 'dark';
+
 export interface ReadingState {
   statusBarHidden: boolean;
+  theme?: ThemePreference;
   documents: Record<string, DocumentReadingState>;
 }
 
@@ -47,7 +51,11 @@ function sanitize(raw: string | null): ReadingState {
       documents[key] = { page: entry.page, zoom: entry.zoom };
     }
   }
-  return { statusBarHidden: candidate.statusBarHidden === true, documents };
+  const theme = candidate.theme === 'light' || candidate.theme === 'dark' ? candidate.theme : undefined;
+  // Omit the key entirely when unset so state comparisons see a clean default.
+  return theme !== undefined
+    ? { statusBarHidden: candidate.statusBarHidden === true, theme, documents }
+    : { statusBarHidden: candidate.statusBarHidden === true, documents };
 }
 
 /**
@@ -94,6 +102,16 @@ export class ReadingPrefs {
   setStatusBarHidden(hidden: boolean): void {
     const state = this.load();
     state.statusBarHidden = hidden;
+    this.#write(state);
+  }
+
+  theme(): ThemePreference | undefined {
+    return this.load().theme;
+  }
+
+  setTheme(theme: ThemePreference): void {
+    const state = this.load();
+    state.theme = theme;
     this.#write(state);
   }
 

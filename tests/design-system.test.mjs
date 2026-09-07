@@ -25,24 +25,50 @@ const media = (node) => {
 const definitions = (condition = '') => {
   const values = new Map();
   tokens.walkDecls(/^--/, (decl) => {
-    if (media(decl) === condition) {
-      assert.equal(decl.parent.selector, ':root', 'global tokens belong on :root');
-      values.set(decl.prop, decl.value);
-    }
+    if (media(decl) !== condition) return;
+    assert.match(decl.parent.selector, /^:root(?:\[data-theme='\w+'\])?$/, 'global tokens belong on :root');
+    if (decl.parent.selector === ':root') values.set(decl.prop, decl.value);
   });
   return values;
 };
-const light = definitions();
-const darkOverrides = definitions('(prefers-color-scheme: dark)');
-const dark = new Map([...light, ...darkOverrides]);
+const schemePins = () => {
+  const pins = new Map();
+  tokens.walkRules(/^:root\[data-theme='(\w+)'\]$/, (rule) => {
+    const match = rule.selector.match(/^:root\[data-theme='(\w+)'\]$/);
+    rule.walkDecls(/^--/, (decl) => {
+      assert.equal(decl.prop, '--theme-color-scheme', 'theme pins may only select the color scheme');
+      pins.set(match[1], decl.value);
+    });
+  });
+  return pins;
+};
+const lightDarkPair = (value) => {
+  const match = value.match(/^light-dark\(\s*(#[0-9a-fA-F]{6,8})\s*,\s*(#[0-9a-fA-F]{6,8})\s*\)$/);
+  assert.ok(match, `color tokens must be light-dark() hex pairs, got: ${value}`);
+  return [match[1], match[2]];
+};
+const rootTokens = definitions();
+const light = new Map();
+const dark = new Map();
+for (const [name, value] of rootTokens) {
+  if (name.startsWith('--color-')) {
+    const [lightValue, darkValue] = lightDarkPair(value);
+    light.set(name, lightValue);
+    dark.set(name, darkValue);
+  } else {
+    light.set(name, value);
+    dark.set(name, value);
+  }
+}
 const references = (value) => [...value.matchAll(/var\(\s*(--[\w-]+)/g)].map((match) => match[1]);
 const colorNames = (values) => [...values.keys()].filter((name) => name.startsWith('--color-')).sort();
 
-test('OS dark mode overrides every light color, with no dark-only colors', () => {
-  assert.ok(colorNames(light).length > 0);
-  assert.deepEqual(colorNames(darkOverrides), colorNames(light));
-  assert.equal(light.get('--theme-color-scheme'), 'light');
-  assert.equal(darkOverrides.get('--theme-color-scheme'), 'dark');
+test('color tokens pair a light and dark value, and the scheme is pinnable', () => {
+  assert.ok(colorNames(rootTokens).length > 0);
+  assert.equal(rootTokens.get('--theme-color-scheme'), 'light dark');
+  const pins = schemePins();
+  assert.equal(pins.get('dark'), 'dark', 'data-theme=dark must pin the dark scheme');
+  assert.equal(pins.get('light'), 'light', 'data-theme=light must pin the light scheme');
 });
 
 test('all CSS token references exist and token graphs are acyclic in each mode', () => {
