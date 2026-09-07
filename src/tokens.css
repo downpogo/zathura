@@ -49,46 +49,48 @@
     --layer-popover: 10;
     --layer-dialog: 20;
 
+    /* Tokyo Night Day (folke/tokyonight.nvim); text shades darkened for WCAG contrast */
     --theme-color-scheme: light;
-    --color-canvas: #f6f5f1;
-    --color-surface: #fdfcf8;
-    --color-text: #242821;
-    --color-text-muted: #5b6255;
-    --color-border: #d0d4c9;
-    --color-border-control: #72796b;
-    --color-control: #eeeee8;
-    --color-control-hover: #e1e7d8;
-    --color-control-active: #d3dfc4;
-    --color-control-disabled: #e9eae4;
-    --color-text-disabled: #646b5e;
-    --color-accent: #496332;
-    --color-focus: #496332;
-    --color-selection: #d3e4bf;
-    --color-on-selection: #203015;
+    --color-canvas: #d0d5e3;
+    --color-surface: #e1e2e7;
+    --color-text: #26418a;
+    --color-text-muted: #3f5196;
+    --color-border: #c4c8da;
+    --color-border-control: #46517d;
+    --color-control: #d0d5e3;
+    --color-control-hover: #c4c8da;
+    --color-control-active: #b7c1e3;
+    --color-control-disabled: #d5d9e4;
+    --color-text-disabled: #4f587f;
+    --color-accent: #1b4fae;
+    --color-focus: #1b4fae;
+    --color-selection: #b7c1e3;
+    --color-on-selection: #26418a;
     --color-danger: #a32d28;
-    --color-shadow: #1920131f;
-    --color-overlay: #19201366;
+    --color-shadow: #1a1b261f;
+    --color-overlay: #1a1b2666;
   }
 
   @media (prefers-color-scheme: dark) {
     :root {
+      /* Tokyo Night Night (folke/tokyonight.nvim) */
       --theme-color-scheme: dark;
-      --color-canvas: #232522;
-      --color-surface: #292d26;
-      --color-text: #e3e5dd;
-      --color-text-muted: #b2b7aa;
-      --color-border: #454b40;
-      --color-border-control: #a5ae9a;
-      --color-control: #30372b;
-      --color-control-hover: #3c4734;
-      --color-control-active: #48583b;
-      --color-control-disabled: #2b3027;
-      --color-text-disabled: #a0a795;
-      --color-accent: #b8d58f;
-      --color-focus: #b8d58f;
-      --color-selection: #435a31;
-      --color-on-selection: #edf5df;
-      --color-danger: #ffaba5;
+      --color-canvas: #16161e;
+      --color-surface: #1a1b26;
+      --color-text: #c0caf5;
+      --color-text-muted: #a9b1d6;
+      --color-border: #3b4261;
+      --color-border-control: #8f97c0;
+      --color-control: #292e42;
+      --color-control-hover: #3b4261;
+      --color-control-active: #414868;
+      --color-control-disabled: #1a1b26;
+      --color-text-disabled: #8189ab;
+      --color-accent: #7aa2f7;
+      --color-focus: #7aa2f7;
+      --color-selection: #283457;
+      --color-on-selection: #c0caf5;
+      --color-danger: #f7768e;
       --color-shadow: #00000066;
       --color-overlay: #00000099;
     }
