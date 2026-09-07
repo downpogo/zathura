@@ -191,7 +191,7 @@ test('NEXT-02 Windows release: reading state persists across app restarts', { ti
           const probe = await page.evaluate(() => ({
             footer: document.querySelector('footer').textContent,
             storage: localStorage.getItem('zathura.reading-state.v1'),
-            tabs: [...document.querySelectorAll('#tab-strip .tab')].map(tab => tab.textContent),
+            documents: [...document.querySelectorAll('#document-items .document-item')].map(item => item.textContent),
           }));
           throw new Error(`Phase C did not reset: ${JSON.stringify(probe)}`, { cause: error });
         }

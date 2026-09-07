@@ -8,7 +8,6 @@
     <title>Zathura</title>
   </head>
   <body>
-    <nav id="tab-strip" role="tablist" aria-label="Open documents" hidden></nav>
     <main aria-labelledby="reader-title">
       <aside id="outline" hidden aria-labelledby="outline-title">
         <h2 id="outline-title">Contents</h2>
@@ -29,6 +28,10 @@
     </div>
     <ul id="file-results" aria-label="File opening feedback" hidden></ul>
     <footer role="status">Open local PDFs with Ctrl+O (Cmd+O on macOS).</footer>
+    <dialog id="document-list" aria-labelledby="document-list-title">
+      <h2 id="document-list-title">Open documents</h2>
+      <div id="document-items" role="listbox" aria-label="Open documents"></div>
+    </dialog>
     <dialog id="password-dialog" aria-labelledby="password-title" aria-describedby="password-message">
       <form id="password-form" method="dialog" class="dialog-content">
         <h2 id="password-title">Password required</h2>

@@ -28,7 +28,7 @@ async function until(predicate, message, timeout = 20_000) {
   assert.fail(message);
 }
 
-test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continuous reader, internal links and offline native PDFs', { timeout: 360_000 }, async () => {
+test('CORE06-08 Windows release: Ctrl+L document switcher, reader keyboard, outline sidebar, continuous reader, internal links and offline native PDFs', { timeout: 360_000 }, async () => {
   assert.equal(process.platform, 'win32', 'Run explicitly on native Windows; browser previews are not evidence.');
   const executable = join(root, 'src-tauri/target/release/local-pdf-reader.exe');
   await access(executable);
@@ -157,10 +157,10 @@ test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continu
         status: document.querySelector('footer').textContent,
         dialogOpen: document.querySelector('#password-dialog').open,
         readerHidden: document.querySelector('#reader').hidden,
-        tabs: [...document.querySelectorAll('#tab-strip .tab')].map(tab => ({
-          label: tab.querySelector('.tab-label')?.textContent,
-          selected: tab.getAttribute('aria-selected'),
-        })),
+        documents: {
+          open: document.querySelector('#document-list').open,
+          items: [...document.querySelectorAll('#document-items .document-item')].map(item => item.textContent),
+        },
         views: [...document.querySelectorAll('#reader .session-view')].map(view => ({
           active: view.classList.contains('active-view'),
           canvases: view.querySelectorAll('canvas').length,
@@ -217,12 +217,12 @@ test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continu
       // The selection loop clears body[data-opening] when it fully resolves.
       await page.waitForFunction(() => !document.body.hasAttribute('data-opening'), null, { polling: 250 });
     }
-    async function closeAllTabs() {
+    async function closeAllSessions() {
       for (;;) {
-        const remaining = await page.locator('#tab-strip .tab').count();
+        const remaining = await page.locator('#reader .session-view').count();
         if (!remaining) break;
         await closeViaCommand();
-        await page.waitForFunction(expected => document.querySelectorAll('#tab-strip .tab').length < expected, remaining, { polling: 250 });
+        await page.waitForFunction(expected => document.querySelectorAll('#reader .session-view').length < expected, remaining, { polling: 250 });
       }
       await status('No document open.');
       await noWorkers();
@@ -266,31 +266,37 @@ test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continu
       } catch { /* Skip this diagnostic capture. */ }
       return pixels;
     }
-    function tab(label) {
-      return page.locator('#tab-strip .tab').filter({ hasText: label });
+    // On-demand document switcher: Ctrl+L opens the modal list of open
+    // sessions; there is no permanent tab strip to assert against.
+    async function openSwitcher() {
+      await page.keyboard.press('Control+l');
+      await page.waitForFunction(() => document.querySelector('#document-list').open, null, { polling: 250 });
+    }
+    async function switcherClosed() {
+      await page.waitForFunction(() => !document.querySelector('#document-list').open, null, { polling: 250 });
+    }
+    async function switcherRows() {
+      return page.evaluate(() => [...document.querySelectorAll('#document-items .document-item')].map(item => ({
+        label: item.textContent,
+        selected: item.getAttribute('aria-selected'),
+        highlighted: item.classList.contains('highlighted'),
+      })));
+    }
+    async function activateFromList(name) {
+      await openSwitcher();
+      await page.locator('#document-items .document-item').filter({ hasText: name }).click();
+      await switcherClosed();
     }
     // Session views render in creation order: index 0 is the first open file.
     function sessionView(index) {
       return page.locator('#reader .session-view').nth(index);
     }
 
-    // CORE-06 multi-open: every selected file becomes its own tab/session; the
-    // FIRST file's tab is active, later ones open as background tabs.
+    // CORE-06 multi-open: every selected file becomes its own session; the
+    // FIRST file is active, later ones open in the background. There is no
+    // visible tab strip: Ctrl+L opens the on-demand document switcher.
     await picker(['basic', 'navigation']);
     await openSettled();
-    await page.waitForFunction(() => {
-      const strip = document.querySelector('#tab-strip');
-      return !strip.hidden && strip.querySelectorAll('button.tab').length === 2;
-    }, null, { polling: 250 });
-    assert.equal(await page.evaluate(() => document.querySelector('#tab-strip').getAttribute('role')), 'tablist');
-    const tabRows = await page.evaluate(() => [...document.querySelectorAll('#tab-strip .tab')].map(tab => ({
-      label: tab.querySelector('.tab-label')?.textContent ?? '',
-      selected: tab.getAttribute('aria-selected'),
-      close: tab.querySelector('.tab-close')?.getAttribute('aria-label') ?? '',
-    })));
-    assert.deepEqual(tabRows.map(row => row.label), ['basic.pdf', 'navigation.pdf']);
-    assert.deepEqual(tabRows.map(row => row.selected), ['true', 'false']);
-    assert.deepEqual(tabRows.map(row => row.close), ['Close basic.pdf', 'Close navigation.pdf']);
     const viewRows = await page.evaluate(() => [...document.querySelectorAll('#reader .session-view')].map(view => ({
       active: view.classList.contains('active-view'),
       visibility: getComputedStyle(view).visibility,
@@ -298,6 +304,13 @@ test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continu
     assert.equal(viewRows.length, 2, 'Each selected file opens its own session view');
     assert.deepEqual(viewRows.map(row => row.active), [true, false], 'First file owns the active view');
     assert.equal(await page.evaluate(() => document.querySelector('header')), null, 'The minimal UI has no header at all');
+    await openSwitcher();
+    const listRows = await switcherRows();
+    assert.deepEqual(listRows.map(row => row.label), ['basic.pdf', 'navigation.pdf']);
+    assert.deepEqual(listRows.map(row => row.selected), ['true', 'false'], 'The active document is aria-selected in the switcher');
+    assert.deepEqual(listRows.map(row => row.highlighted), [true, false]);
+    await page.keyboard.press('Escape');
+    await switcherClosed();
 
     // Ctrl+N toggles the status bar for full-bleed reading.
     await page.keyboard.press('Control+n');
@@ -342,14 +355,14 @@ test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continu
     await page.emulateMedia({ colorScheme: 'light' });
 
     // CORE-06 position retention: each view keeps its own scroll offset while
-    // backgrounded; switching tabs restores them exactly.
+    // backgrounded; switching via the Ctrl+L modal restores them exactly.
     await page.evaluate(() => {
       const view = document.querySelectorAll('#reader .session-view')[0];
       view.scrollTop = 300;
     });
     const basicScroll = await sessionView(0).evaluate(view => view.scrollTop);
     assert.ok(Math.abs(basicScroll - 300) <= 1, `basic.pdf view must be scrollable to 300px (got ${basicScroll})`);
-    await tab('navigation.pdf').click();
+    await activateFromList('navigation.pdf');
     await statusStarts('navigation.pdf | Page 1 of 4 | ');
     await page.waitForFunction(() => {
       const view = document.querySelectorAll('#reader .session-view')[1];
@@ -361,16 +374,14 @@ test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continu
     });
     const navigationScroll = await sessionView(1).evaluate(view => view.scrollTop);
     assert.ok(Math.abs(navigationScroll - 500) <= 1, `navigation.pdf view must be scrollable to 500px (got ${navigationScroll})`);
-    await tab('basic.pdf').click();
+    await activateFromList('basic.pdf');
     await statusStarts('basic.pdf | Page 1 of 1 | ');
     await page.waitForFunction(target => Math.abs(document.querySelectorAll('#reader .session-view')[0].scrollTop - target) <= 1, basicScroll, { polling: 250 });
-    await tab('navigation.pdf').click();
+    await activateFromList('navigation.pdf');
     await statusStarts('navigation.pdf | Page 1 of 4 | ');
     await page.waitForFunction(target => Math.abs(document.querySelectorAll('#reader .session-view')[1].scrollTop - target) <= 1, navigationScroll, { polling: 250 });
 
-    // CORE-07 gt/gT switch documents cyclically.
-    await tab('navigation.pdf').click();
-    await statusStarts('navigation.pdf | Page 1 of 4 | ');
+    // CORE-07 gt/gT switch documents cyclically (headless, no modal needed).
     await page.keyboard.press('g');
     await page.keyboard.press('t');
     await statusStarts('basic.pdf | Page 1 of 1 | ');
@@ -379,7 +390,7 @@ test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continu
     await statusStarts('navigation.pdf | Page 1 of 4 | ');
 
     // CORE-07 zoom/fit on the active document, at 100% before and after.
-    await tab('basic.pdf').click();
+    await activateFromList('basic.pdf');
     await statusStarts('basic.pdf | Page 1 of 1 | 100%');
     await page.keyboard.press('+');
     await status('basic.pdf | Page 1 of 1 | 110%');
@@ -405,7 +416,7 @@ test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continu
     await statusStarts('basic.pdf | Page 1 of 1 | ');
 
     // CORE-07 keyboard: scrolling and paging on navigation.pdf (4 pages).
-    await tab('navigation.pdf').click();
+    await activateFromList('navigation.pdf');
     await statusStarts('navigation.pdf | Page 1 of 4 | ');
     await page.keyboard.press('g');
     await page.keyboard.press('g');
@@ -417,7 +428,7 @@ test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continu
         scroll: [...document.querySelectorAll('#reader .session-view')].map(view => view.scrollTop),
         footer: document.querySelector('footer').textContent,
         activeElement: document.activeElement?.className ?? 'none',
-        selected: [...document.querySelectorAll('#tab-strip .tab')].map(tab => tab.getAttribute('aria-selected')),
+        selected: [...document.querySelectorAll('#document-items .document-item')].map(item => item.getAttribute('aria-selected')),
       }));
       throw new Error(`gg did not scroll to top: ${JSON.stringify(probe)}`, { cause: error });
     }
@@ -537,8 +548,8 @@ test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continu
     await page.keyboard.press('=');
     await statusStarts('basic.pdf | Page 1 of 1 | 100%');
 
-    // Closing every tab hides the sidebar and clears the tree entirely.
-    await closeAllTabs();
+    // Closing every session hides the sidebar and clears the tree entirely.
+    await closeAllSessions();
     assert.equal(await outlineHidden(), true, 'The sidebar hides again with no document open');
     assert.equal(await page.evaluate(() => document.querySelector('#outline-tree').textContent), '',
       'The tree is cleared, including the no-outline message');
@@ -550,44 +561,82 @@ test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continu
     }
 
     // CORE-06 duplicate handling: selecting an already-open file focuses its
-    // existing tab and session without spawning a new worker.
+    // existing session without spawning a new worker.
     await clearHistory();
     await picker(['basic']);
     await rendered('basic');
-    assert.equal(await page.evaluate(() => document.querySelector('#tab-strip').hidden), true, 'Strip stays hidden for a single document');
+    // The switcher shows exactly one entry for a single document.
+    await openSwitcher();
+    assert.equal(await page.locator('#document-items .document-item').count(), 1);
+    assert.equal(await page.locator('#document-items .document-item').textContent(), 'basic.pdf');
+    await page.keyboard.press('Escape');
+    await switcherClosed();
     assert.equal(await page.locator('#reader .session-view').count(), 1);
     const workersBeforeDuplicate = workerCreated;
     await picker(['basic']);
     await openSettled();
     assert.equal(workerCreated, workersBeforeDuplicate, 'Duplicate selection must not spawn a worker');
     await statusStarts('basic.pdf | Page 1 of 1 | ');
-    assert.equal(await page.locator('#tab-strip .tab').count(), 1);
     assert.equal(await page.locator('#reader .session-view').count(), 1);
     await until(() => page.workers().length === 1, 'Duplicate selection must reuse the existing session worker');
     await picker(['navigation']);
     await openSettled();
     await statusStarts('navigation.pdf | Page 1 of 4 | ');
-    assert.equal(await page.locator('#tab-strip .tab').count(), 2);
     assert.equal(await page.locator('#reader .session-view').count(), 2);
-    await until(() => page.workers().length === 2, 'Expected one worker per tab');
+    await until(() => page.workers().length === 2, 'Expected one worker per session');
     const workersBeforeSecondDuplicate = workerCreated;
     await picker(['navigation']);
     await openSettled();
     assert.equal(workerCreated, workersBeforeSecondDuplicate, 'Duplicate navigation selection must not spawn a worker');
-    assert.equal(await page.locator('#tab-strip .tab').count(), 2);
+    assert.equal(await page.locator('#reader .session-view').count(), 2);
     await statusStarts('navigation.pdf | Page 1 of 4 | ');
 
-    // CORE-06 close semantics: the tab's own close button closes that tab and
-    // its neighbor (next, else previous) becomes active.
-    await tab('basic.pdf').click();
+    // Ctrl+L switcher functional check: k/j move the highlight (with the
+    // active document pre-selected), Enter activates, Escape closes without
+    // switching; switching via the modal spawns no new workers.
+    const workersBeforeSwitching = workerCreated;
+    await openSwitcher();
+    let rows = await switcherRows();
+    assert.deepEqual(rows.map(row => row.selected), ['false', 'true'], 'The active document starts highlighted in the switcher');
+    await page.keyboard.press('k');
+    rows = await switcherRows();
+    assert.deepEqual(rows.map(row => row.highlighted), [true, false], 'k moves the highlight to the previous entry');
+    await page.keyboard.press('Enter');
+    await switcherClosed();
     await statusStarts('basic.pdf | Page 1 of 1 | ');
-    await page.getByRole('button', { name: 'Close basic.pdf', exact: true }).click();
+    await openSwitcher();
+    await page.keyboard.press('j');
+    rows = await switcherRows();
+    assert.deepEqual(rows.map(row => row.highlighted), [false, true], 'j moves the highlight to the next entry');
+    await page.keyboard.press('Enter');
+    await switcherClosed();
     await statusStarts('navigation.pdf | Page 1 of 4 | ');
-    assert.equal(await page.locator('#tab-strip .tab').count(), 1);
-    assert.equal(await page.evaluate(() => document.querySelector('#tab-strip').hidden), true, 'Strip hidden again for the one remaining document');
-    await until(() => page.workers().length === 1, 'Closing a tab disposes only its own worker');
+    await openSwitcher();
+    rows = await switcherRows();
+    assert.deepEqual(rows.map(row => row.selected), ['false', 'true'], 'The highlight follows the newly active document');
+    await page.keyboard.press('k');
+    await page.keyboard.press('Enter');
+    await switcherClosed();
+    await statusStarts('basic.pdf | Page 1 of 1 | ');
+    await openSwitcher();
+    await page.keyboard.press('Escape');
+    await switcherClosed();
+    await statusStarts('basic.pdf | Page 1 of 1 | ');
+    assert.equal(workerCreated, workersBeforeSwitching, 'Switching via the modal must not spawn a worker');
+
+    // CORE-06 close semantics: ':q' closes the active document and its
+    // neighbor (next, else previous) becomes active.
+    await closeViaCommand();
+    await statusStarts('navigation.pdf | Page 1 of 4 | ');
+    await openSwitcher();
+    rows = await switcherRows();
+    assert.deepEqual(rows.map(row => row.label), ['navigation.pdf'], 'Only the surviving document remains in the switcher');
+    assert.deepEqual(rows.map(row => row.selected), ['true']);
+    await page.keyboard.press('Escape');
+    await switcherClosed();
+    await until(() => page.workers().length === 1, 'Closing a session disposes only its own worker');
     await close();
-    // Recovery: the reader can open documents again after every tab closed.
+    // Recovery: the reader can open documents again after every session closed.
     await picker(['basic']);
     await rendered('basic');
     // Command mode rejects unknown commands without disturbing the document.
@@ -725,14 +774,14 @@ test('CORE06-08 Windows release: tabs, reader keyboard, outline sidebar, continu
     // The live flow asserts per-phase worker counts (e.g. two workers during
     // multi-open); the exact total depends on fixture order, so bound it
     // loosely and prove cleanup via created === closed.
-    assert.ok(workerCreated >= 20, 'Tabs, duplicate handling, keyboard sessions and recovery created actual workers');
+    assert.ok(workerCreated >= 20, 'Multi-open, duplicate handling, switcher sessions, keyboard sessions and recovery created actual workers');
     assert.equal(workerCreated, workerClosed, 'Every observed worker closed');
     assert.equal(responses.filter(item => item.status >= 400).length, 0, 'No failing packaged asset responses');
     assert.equal(externalRequests, 0, 'No external HTTP requests');
     assert.equal(pageErrors, 0, 'No uncaught page errors (raw messages suppressed)');
     assert.equal(securityErrors, 0, 'No browser security errors, including worker CSP failures');
     assert.equal(await page.evaluate(() => globalThis.__pdfSmokeCspCount), 0, 'No document CSP violations');
-    console.log(`Verified WebView2 ${browser.version()}: offline multi-tab reader with CORE-06 tabs (multi-open, duplicates, position retention, close semantics), CORE-07 keyboard (hjkl, Ctrl+D/U/F/B, gg/G/[count]G, zoom/fit, pending keys) and CORE-08 outline (Tab toggle, fixture tree, destinationless expansion, named/broken jumps, no-outline fallback, sidebar relayout), plus lazy pages, internal links, passwords and recovery across ${workerClosed} terminated workers. Fixture screenshots: test-results/pdf/.`);
+    console.log(`Verified WebView2 ${browser.version()}: offline multi-session reader with CORE-06 sessions (Ctrl+L switcher with j/k/Enter/Escape, multi-open, duplicates, position retention, :q close semantics), CORE-07 keyboard (hjkl, Ctrl+D/U/F/B, gg/G/[count]G, zoom/fit, pending keys) and CORE-08 outline (Tab toggle, fixture tree, destinationless expansion, named/broken jumps, no-outline fallback, sidebar relayout), plus lazy pages, internal links, passwords and recovery across ${workerClosed} terminated workers. Fixture screenshots: test-results/pdf/.`);
   } finally {
     try { await browser?.close(); } finally {
       if (app.pid && app.exitCode === null) {

@@ -3,7 +3,6 @@ import { DocumentSession, DocumentSessionError } from './document-session';
 import { OutlineTree } from './outline';
 import { NativeFileError, NativeFileHandle, readPdfFile, releasePdfFile, selectPdfFiles } from './native-files';
 import { ReadingPrefs } from './prefs';
-import { TabStrip } from './tabs';
 import 'pdfjs-dist/legacy/web/pdf_viewer.css';
 import './viewer-overrides.css';
 
@@ -12,7 +11,8 @@ const status = document.querySelector<HTMLElement>('footer')!;
 const empty = document.querySelector<HTMLElement>('#empty-reader')!;
 const reader = document.querySelector<HTMLElement>('#reader')!;
 const outlinePanel = document.querySelector<HTMLElement>('#outline')!;
-const tabStripElement = document.querySelector<HTMLElement>('#tab-strip')!;
+const documentList = document.querySelector<HTMLDialogElement>('#document-list')!;
+const documentItems = document.querySelector<HTMLElement>('#document-items')!;
 const dialog = document.querySelector<HTMLDialogElement>('#password-dialog')!;
 const password = document.querySelector<HTMLInputElement>('#pdf-password')!;
 const passwordMessage = document.querySelector<HTMLElement>('#password-message')!;
@@ -75,11 +75,6 @@ let active: SessionRecord | undefined;
 let passwordReply: ((value: string | null) => void) | undefined;
 let pendingKeys = '';
 
-const tabs = new TabStrip(tabStripElement, {
-  onActivate: id => activateSession(id),
-  onClose: id => closeSession(id),
-});
-
 const outlineTree = new OutlineTree(document.querySelector<HTMLElement>('#outline-tree')!, {
   onActivate: node => {
     const record = active;
@@ -111,7 +106,7 @@ status.hidden = prefs.statusBarHidden();
 
 const keyboard = createReaderKeyboard({
   execute: runCommand,
-  isReaderActive: () => active !== undefined && !dialog.open,
+  isReaderActive: () => active !== undefined && !dialog.open && !documentList.open,
   onPendingChange: pending => {
     pendingKeys = pending;
     renderStatus();
@@ -141,12 +136,29 @@ function feedback(message: string): void {
   results.hidden = false;
 }
 
+function sessionIds(): symbol[] {
+  return [...sessions.keys()];
+}
+
+function neighborOf(id: symbol): symbol | undefined {
+  const ids = sessionIds();
+  const index = ids.indexOf(id);
+  if (index === -1) return undefined;
+  return ids[index + 1] ?? ids[index - 1];
+}
+
+function cycleSessions(delta: 1 | -1, from = active?.session.id): symbol | undefined {
+  const ids = sessionIds();
+  if (ids.length < 2) return from;
+  const index = from ? ids.indexOf(from) : 0;
+  return ids[(index + delta + ids.length) % ids.length];
+}
+
 function activateSession(id: symbol): void {
   const record = sessions.get(id);
   if (!record) return;
   for (const other of sessions.values()) other.view.classList.remove('active-view');
   record.view.classList.add('active-view');
-  tabs.activate(id);
   active = record;
   keyboard.reset();
   empty.hidden = true;
@@ -158,10 +170,9 @@ function activateSession(id: symbol): void {
 function closeSession(id: symbol): void {
   const record = sessions.get(id);
   if (!record) return;
-  // Select the neighbor before removing the tab from the strip.
-  const neighbor = tabs.neighborOf(id);
+  // Select the neighbor before removing the session.
+  const neighbor = neighborOf(id);
   sessions.delete(id);
-  tabs.remove(id);
   if (active?.session.id === id) active = undefined;
   // Persist the closing document's last page/zoom before teardown.
   saveSnapshot(record.session, record.key);
@@ -246,7 +257,7 @@ function runCommand(command: ReaderCommand): void {
       renderStatus();
       break;
     case 'tab': {
-      const target = tabs.cycle(command.delta);
+      const target = cycleSessions(command.delta);
       if (target) activateSession(target);
       break;
     }
@@ -258,7 +269,7 @@ function isOwnedHandle(handle: NativeFileHandle): boolean {
 }
 
 async function releaseUnowned(handles: NativeFileHandle[]): Promise<void> {
-  // Only release handles this request owns; already-open ones belong to tabs.
+  // Only release handles this request owns; already-open ones belong to sessions.
   const owned = handles.filter(handle => !isOwnedHandle(handle));
   const settled = await Promise.allSettled(owned.map(handle => releasePdfFile(handle)));
   if (settled.some(result => result.status === 'rejected')) {
@@ -399,7 +410,6 @@ async function createSession(request: symbol, key: string, handle: NativeFileHan
   }
   const record: SessionRecord = { session: session!, name, key, handle, view };
   sessions.set(session!.id, record);
-  tabs.add(session!.id, name);
   // Restore remembered reading position/zoom for this content before the
   // first paint of the tab; invalid stored values are ignored by the session.
   const remembered = prefs.document(key);
@@ -419,10 +429,64 @@ document.querySelector<HTMLFormElement>('#password-form')!.addEventListener('sub
 document.querySelector('#cancel-password')!.addEventListener('click', () => finishPassword(null));
 dialog.addEventListener('cancel', event => { event.preventDefault(); finishPassword(null); });
 
+function anyDialogOpen(): boolean {
+  return dialog.open || documentList.open;
+}
+
+// On-demand document switcher (Ctrl+L): a modal list of open sessions with
+// j/k or arrow movement, Enter to activate, click support, Escape to close.
+let documentListIndex = 0;
+
+function openDocumentList(): void {
+  if (documentList.open || dialog.open || !active) return;
+  const records = sessionIds().map(id => sessions.get(id)!);
+  documentListIndex = Math.max(0, records.findIndex(record => record.session.id === active!.session.id));
+  documentItems.replaceChildren(...records.map((record, index) => {
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.className = 'document-item';
+    option.setAttribute('role', 'option');
+    option.textContent = record.name;
+    option.addEventListener('click', () => chooseDocument(index));
+    return option;
+  }));
+  documentList.showModal();
+  highlightDocumentItem(documentListIndex);
+}
+
+function highlightDocumentItem(index: number): void {
+  const options = [...documentItems.querySelectorAll<HTMLButtonElement>('.document-item')];
+  documentListIndex = (index + options.length) % options.length;
+  options.forEach((option, optionIndex) => {
+    option.setAttribute('aria-selected', String(optionIndex === documentListIndex));
+    option.classList.toggle('highlighted', optionIndex === documentListIndex);
+  });
+  options[documentListIndex]?.scrollIntoView({ block: 'nearest' });
+}
+
+function chooseDocument(index: number): void {
+  const id = sessionIds()[index];
+  documentList.close();
+  if (id) activateSession(id);
+}
+
+documentList.addEventListener('keydown', event => {
+  if (event.key === 'j' || event.key === 'ArrowDown') {
+    event.preventDefault();
+    highlightDocumentItem(documentListIndex + 1);
+  } else if (event.key === 'k' || event.key === 'ArrowUp') {
+    event.preventDefault();
+    highlightDocumentItem(documentListIndex - 1);
+  } else if (event.key === 'Enter') {
+    event.preventDefault();
+    chooseDocument(documentListIndex);
+  }
+});
+
 // Zathura-style command mode: ':' opens the prompt, 'q' + Enter closes the
 // current document. Unknown commands are nonfatal feedback.
 function showCommandBar(): void {
-  if (dialog.open) return;
+  if (anyDialogOpen()) return;
   commandBar.hidden = false;
   commandInput.value = '';
   commandInput.focus();
@@ -473,11 +537,18 @@ window.addEventListener('beforeunload', () => {
   flushPendingSaves();
 });
 document.addEventListener('keydown', event => {
-  if (dialog.open) return;
+  if (anyDialogOpen()) return;
   if ((event.ctrlKey !== event.metaKey) && !event.altKey && !event.shiftKey
       && !event.isComposing && event.key.toLowerCase() === 'o') {
     event.preventDefault();
     if (!event.repeat) void openFiles();
+    return;
+  }
+  if ((event.ctrlKey !== event.metaKey) && !event.altKey && !event.shiftKey
+      && !event.isComposing && !event.repeat && event.key.toLowerCase() === 'l') {
+    // On-demand document switcher.
+    event.preventDefault();
+    openDocumentList();
     return;
   }
   if (event.key === ':' && !event.ctrlKey && !event.metaKey && !event.altKey

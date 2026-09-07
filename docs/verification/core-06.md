@@ -35,6 +35,16 @@ strip visibility rules, per-tab worker disposal, and recovery after the final
 close. Zero external requests, zero CSP violations/page errors; created ==
 terminated workers.
 
+## Subsequent UI Change (User-Directed)
+
+The always-visible tab strip was replaced by an on-demand **Ctrl+L document
+switcher** (modal listbox: j/k or arrows, Enter, click, Escape). Session
+management, neighbor-close rule, gt/gT and per-session workers are unchanged;
+`src/tabs.ts` was folded into headless registry helpers in `src/main.ts`.
+The native smoke drives the modal (open, item order, aria-selected, Enter/
+Escape, close-neighbor, no worker spawns on switching) and passes along with
+the persistence and theme smokes.
+
 ## Limits
 
 gt/gT is wired for keyboard-only switching (user-directed minimal UI);

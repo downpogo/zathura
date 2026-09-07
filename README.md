@@ -21,6 +21,7 @@ keyboard-driven:
 | 42G | Jump to physical page 42 |
 | + / - / = | Zoom in / out / reset |
 | a / s | Fit page / fit width |
+| Ctrl+L | List open documents; j/k or arrows + Enter to switch |
 | gt / gT | Next / previous document |
 | : then q, Enter | Close the current document (`:q`) |
 | Tab | Toggle the outline / table-of-contents sidebar |
@@ -29,6 +30,8 @@ keyboard-driven:
 
 The sidebar lists the PDF's embedded table of contents: click a section (or
 expand a group) to jump to it; PDFs without an embedded outline say so.
+Multiple documents are managed invisibly — Ctrl+L lists the open ones on
+demand.
 
 **Zathura remembers**: your status-bar preference and each document's last
 page and zoom (keyed by file content, never paths), restored when you reopen

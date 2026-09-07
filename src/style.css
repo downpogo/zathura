@@ -305,6 +305,41 @@
     overflow-wrap: anywhere;
   }
 
+  .document-item {
+    display: block;
+    inline-size: var(--size-fluid);
+    padding: var(--space-2) var(--space-3);
+    border: var(--border-width) solid var(--color-border);
+    border-radius: var(--radius-small);
+    color: var(--color-text);
+    background-color: var(--color-control);
+    text-align: start;
+    font-size: var(--font-size-small);
+    overflow-wrap: anywhere;
+  }
+
+  .document-item.highlighted,
+  .document-item:hover {
+    border-color: var(--color-border-control);
+    background-color: var(--color-control-active);
+  }
+
+  #document-items {
+    display: grid;
+    gap: var(--space-2);
+    max-block-size: var(--size-list-max);
+    overflow: auto;
+    scrollbar-width: none;
+  }
+
+  #document-items::-webkit-scrollbar { display: none; }
+
+  #document-items:empty::after {
+    content: 'No documents are open.';
+    color: var(--color-text-muted);
+    font-size: var(--font-size-small);
+  }
+
   #command-bar {
     display: flex;
     align-items: center;
