@@ -44,6 +44,25 @@
         </div>
       </form>
     </dialog>
+    <!-- Recolor filter: maps each page pixel's luminance onto the theme's
+         canvas/text colors (flood colors come from tokens in CSS). Both color
+         weights are masked by the source alpha so areas the canvas does not
+         paint stay untouched, and the region is clipped to the canvas box. -->
+    <svg width="0" height="0" aria-hidden="true" focusable="false">
+      <filter id="pdf-recolor" color-interpolation-filters="sRGB" x="0%" y="0%" width="100%" height="100%">
+        <feColorMatrix in="SourceGraphic" type="luminanceToAlpha" result="lum" />
+        <feComponentTransfer in="lum" result="ink-lum">
+          <feFuncA type="table" tableValues="1 0" />
+        </feComponentTransfer>
+        <feComposite in="lum" in2="SourceGraphic" operator="arithmetic" k1="1" k2="0" k3="0" k4="0" result="paper-weight" />
+        <feComposite in="ink-lum" in2="SourceGraphic" operator="arithmetic" k1="1" k2="0" k3="0" k4="0" result="ink-weight" />
+        <feFlood id="pdf-recolor-paper" result="paper-color" />
+        <feComposite in="paper-color" in2="paper-weight" operator="in" result="paper" />
+        <feFlood id="pdf-recolor-ink" result="ink-color" />
+        <feComposite in="ink-color" in2="ink-weight" operator="in" result="ink" />
+        <feComposite in="paper" in2="ink" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" />
+      </filter>
+    </svg>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

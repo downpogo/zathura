@@ -85,8 +85,11 @@ unlayered and therefore win the cascade over our `@layer` rules regardless of
 order. Token-based viewer overrides live in `src/viewer-overrides.css`, which
 is imported after the vendored sheet and is the only place allowed to restyle
 viewer internals (currently: shell color-scheme, page shadow, text-selection
-colors). Page artwork keeps the document's own colors; do not invert, filter,
-or recolor PDF page content when the shell changes theme.
+colors, page recoloring). Page artwork is recolored to match the theme: an SVG
+filter (`#pdf-recolor`, defined in `index.html`) maps each canvas pixel's
+luminance onto the `--color-canvas`/`--color-text` ramp, with flood colors
+pulled from those tokens so theme changes re-tint rendered pages live. The
+filter needs no per-page JS and never touches the text or annotation layers.
 
 ## Verification
 

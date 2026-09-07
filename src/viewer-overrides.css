@@ -1,10 +1,25 @@
 /* Overrides for the vendored pdf_viewer.css, which is unlayered and loads
-   before this file. Shell-drawn chrome uses our tokens; PDF page artwork keeps
-   the document's own colors. */
+   before this file. Shell-drawn chrome uses our tokens; PDF page artwork is
+   recolored to match: each page pixel's luminance maps onto the theme's
+   canvas/text colors, so pages read in-theme instead of black-on-white. */
 
 :root { color-scheme: var(--theme-color-scheme); }
 
-.pdfViewer .page { box-shadow: var(--shadow-control); }
+.pdfViewer .page {
+  box-shadow: var(--shadow-control);
+  /* Pages paint over this before the canvas arrives; keep it in-theme. */
+  background-color: var(--color-canvas);
+}
+
+/* The filter (defined in index.html) blends the theme canvas color wherever
+   the page is light and the theme text color wherever it is dark. Flood
+   colors track the tokens, so theme changes re-tint rendered pages live.
+   Text layers and annotations paint unfiltered and keep their own colors. */
+.pdfViewer .canvasWrapper canvas { filter: url(#pdf-recolor); }
+
+#pdf-recolor-paper { flood-color: var(--color-canvas); }
+
+#pdf-recolor-ink { flood-color: var(--color-text); }
 
 .pdfViewer .textLayer ::selection,
 .pdfViewer .textLayer br::selection {
