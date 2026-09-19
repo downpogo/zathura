@@ -1,213 +1,261 @@
 # Zathura
 
-A local, keyboard-first desktop PDF reader using **Tauri 2, TypeScript, Vite,
-and locally bundled PDF.js**, packaged with Tauri's bundler. Use **pnpm**
-for JavaScript dependencies and commands.
+A local, keyboard-first desktop PDF reader inspired by Zathura. It uses a
+minimal interface so that opening, reading, navigating, and switching documents
+can be done almost entirely from the keyboard.
 
-## Current Status
+The application is currently developed and verified on Windows 11 x64. Linux
+and macOS can be built through Tauri, but their native behavior has not yet been
+verified by this project.
 
-**CORE-01 through CORE-07 are verified on Windows 11 x64.** The reader opens
-local PDFs through the native picker (button or Ctrl+O) and reads them in a
-continuous scrolling view with a bundled PDF.js 6.3.289 module worker. The UI
-is minimal by design — Open PDFs is the only button; everything else is
-keyboard-driven:
+## Features
+
+- Open up to 32 PDFs at once with the native file picker.
+- Render PDFs completely offline with a bundled PDF.js worker and assets.
+- Read documents in a continuous vertical view with mouse, trackpad, or
+  Vim-style keyboard navigation.
+- Select and copy text from PDFs that contain a text layer.
+- Zoom in and out, reset to 100%, fit the current page, or fit page width.
+- Keep multiple documents open without a permanent tab bar; use the document
+  switcher or keyboard shortcuts to move between them.
+- Browse nested PDF outlines and follow internal document destinations.
+- Open password-protected PDFs with retry and cancellation support.
+- Recover cleanly from invalid, corrupt, or unsupported files.
+- Follow the operating-system theme or persist a manual light/dark override.
+- Remember status-bar visibility and each document's last page and zoom level.
+  Document history is keyed by file content rather than its path.
+- Run without a network connection, accounts, telemetry, or remote assets.
+
+Current limitations:
+
+- There is no text search, OCR, printing, annotation editing, Save As, or recent
+  files list.
+- External links in PDFs are disabled; internal PDF links are supported.
+- Image-only PDFs can be viewed but are not converted to searchable text.
+- Files are loaded into memory and are limited to 128 MiB each.
+- Installers and signed release packages are not configured yet. The build
+  instructions below produce a standalone executable for the current OS.
+
+## Keybindings
+
+On macOS, use `Cmd` instead of `Ctrl` for the global shortcuts marked
+`Ctrl/Cmd`. Reader scrolling shortcuts continue to use `Ctrl`.
+
+### Application
 
 | Keys | Action |
 | --- | --- |
-| j / k / h / l | Scroll down / up / left / right |
-| Ctrl+D / Ctrl+U | Half viewport down / up |
-| Ctrl+F / Ctrl+B | Full viewport down / up |
-| gg / G | First / last page |
-| 42G | Jump to physical page 42 |
-| + / - / = | Zoom in / out / reset |
-| a / s | Fit page / fit width |
-| Ctrl+L | List open documents; j/k or arrows + Enter to switch |
-| gt / gT | Next / previous document |
-| : then q, Enter | Close the current document (`:q`) |
-| : then waifu, Enter | Toggle the dancing waifu (`:waifu`) |
-| Tab | Toggle the outline / table-of-contents sidebar |
-| Ctrl+N | Toggle the status bar for full-bleed reading |
-| Ctrl+R | Toggle light / dark theme (remembers your choice) |
-| Escape | Clear pending keys |
+| `Ctrl/Cmd+O` | Open one or more PDFs |
+| `Ctrl/Cmd+L` | List open documents |
+| `Ctrl/Cmd+R` | Toggle and remember light/dark theme |
+| `Ctrl/Cmd+N` | Toggle and remember the status bar |
+| `Tab` | Toggle the PDF outline sidebar |
+| `:` | Open command mode |
+| `Escape` | Clear a pending key sequence or close the active dialog |
 
-The sidebar lists the PDF's embedded table of contents: click a section (or
-expand a group) to jump to it; PDFs without an embedded outline say so.
-Multiple documents are managed invisibly — Ctrl+L lists the open ones on
-demand.
+### Reading
 
-**Zathura remembers**: your status-bar and theme preferences and each
-document's last page and zoom (keyed by file content, never paths), restored
-when you reopen the same file. Use `:clear-history` in the command prompt to
-forget everything and follow the OS theme again. Press Ctrl+O any time to add
-more PDFs.
+| Keys | Action |
+| --- | --- |
+| `j` / `k` | Scroll down / up |
+| `h` / `l` | Scroll left / right |
+| `Ctrl+D` / `Ctrl+U` | Scroll half a viewport down / up |
+| `Ctrl+F` / `Ctrl+B` | Scroll one viewport down / up |
+| `gg` | Go to the first page |
+| `G` | Go to the last page |
+| `[number]G` | Go to a physical page, for example `42G` |
+| `+` / `-` | Zoom in / out |
+| `=` | Reset zoom to 100% |
+| `a` | Fit the page |
+| `s` | Fit page width |
+| `gt` / `gT` | Switch to the next / previous document |
 
-Tabs keep one session per document (duplicate selections focus the existing
-tab), positions persist while switching, and password retry/cancel plus
-corrupt-file recovery are verified offline. See
-[verification evidence](docs/verification/core-01.md),
-[tabs](docs/verification/core-06.md) and
-[keyboard](docs/verification/core-07.md). The outline sidebar (CORE-08),
-`?` help and final focus rules (CORE-09) are next. There is no installer.
+### Document Switcher
 
-The shell has a token-based design system with **OS-selected light and dark
-themes**, including live preference changes, system fonts, shared sizing/spacing,
-control states and accessibility defaults. No manual theme override is stored.
+| Keys | Action |
+| --- | --- |
+| `j` / `Down` | Select the next document |
+| `k` / `Up` | Select the previous document |
+| `Enter` | Open the selected document |
+| `Escape` | Close the switcher |
 
-- [Implementation plan and acceptance criteria](docs/implementation-plan.md)
-- [Desktop PDF stack research and sources](docs/research/desktop-pdf-stack.md)
-- [Design tokens and component guidelines](docs/design-system.md)
-- [Windows theme verification](docs/verification/design-system.md)
-- [PDF.js renderer module contract](docs/verification/core-04-renderer.md)
+### Commands
 
-## Proposed Test Matrix
+Press `:`, type a command, and press `Enter`.
 
-These are validation targets, not claims of supported platforms. Windows testing
-is the priority; the macOS target remains pending user confirmation.
+| Command | Action |
+| --- | --- |
+| `:q` | Close the current document |
+| `:clear-history` | Clear saved reading state and return to the OS theme |
+| `:waifu` | Toggle the dancing corner overlay |
 
-| Target | Architecture | Native Webview | Validation Status |
-| --- | --- | --- | --- |
-| Windows 11 build 26200, primary | x64 | WebView2 152.0.4191.66 | Bootstrap release compile and native launch/content/close pass; PDF and installer acceptance pending. |
-| Ubuntu 24.04, secondary | x64 | WebKitGTK 4.1 | Native compile and launch blocked by missing Rust/Cargo; clean native Linux validation unavailable. |
-| macOS, pending confirmation | Version and Apple Silicon/Intel pending | System WKWebView | No confirmed target or available validation evidence; support is not claimed. |
+## Tech Stack
 
-Record the exact OS build, architecture, toolchain versions, webview version,
-commands, and results for each future native test. Confirm the user's macOS
-version and hardware before selecting a macOS support target. Windows ARM and
-other Linux distributions are not established targets.
+| Layer | Technology |
+| --- | --- |
+| Desktop shell | [Tauri 2](https://v2.tauri.app/) |
+| Native backend | Rust 1.93 |
+| Frontend | TypeScript 5.9, HTML, and CSS |
+| Build tooling | Vite 7 and pnpm 10 |
+| PDF rendering | PDF.js 6.3 |
+| Native file picker | `rfd` |
+| Windows webview | Microsoft Edge WebView2 |
+| Linux webview | WebKitGTK 4.1 |
+| macOS webview | WKWebView |
 
-### Available Environment
+The frontend receives opaque document handles instead of filesystem paths. The
+native backend validates and reads selected files, while PDF parsing and
+rendering happen locally in the bundled PDF.js viewer. Tauri capabilities,
+remote navigation, and external PDF links are disabled.
 
-The development host is **WSL2 Ubuntu 24.04.4 x86_64**, with **Node.js 24.14.0**
-and **pnpm 10.32.1**. Neither Rust nor Cargo is installed. Selected versions are
-Rust 1.93.0, Tauri 2.11.5, tauri-build 2.6.3, Tauri CLI 2.11.4, TypeScript 5.9.3,
-and Vite 7.3.1. JavaScript and Rust dependencies are locked. PDF.js is intentionally
-deferred to CORE-04. The separate Windows build environment uses Node 24.19.0,
-pnpm 10.32.1, and Rust 1.93.0 with the x86_64-pc-windows-msvc toolchain.
+## Build a Binary
 
-Windows PowerShell is accessible from WSL. Node, pnpm, and Rust were installed
-with user authorization after the initial missing-toolchain probe. Visual Studio
-2019 Build Tools and the installed Windows SDK successfully compile the shell.
-The Windows registry reports WebView2 152.0.4191.66, on Windows build 26200.
+Build on the operating system you want to target. Tauri uses native webviews and
+native compiler toolchains, so a Windows build should run on Windows, a macOS
+build on macOS, and a Linux build on Linux. Cross-compilation is not part of the
+project's supported workflow.
 
-WSL frontend checks do not validate Windows. A Linux Tauri process launched via
-WSLg uses Linux WebKitGTK, not Windows WebView2, and is not a clean native Ubuntu
-desktop validation either. A browser preview does not establish native-webview
-or packaged-application compatibility.
+All platforms require:
 
-## Development Prerequisites
+- [Node.js 24](https://nodejs.org/)
+- [pnpm 10](https://pnpm.io/installation)
+- [Rust through rustup](https://rustup.rs/); `rust-toolchain.toml` automatically
+  selects Rust 1.93
+- Git
 
-### Native Windows 11 x64
+After installing the OS-specific prerequisites below, run these commands from
+the repository root:
 
-- Install native Windows Node.js and pnpm; use Node.js 24.14.0 and pnpm 10.32.1
-  or a newer Node 24 patch. Windows verification uses Node 24.19.0.
-- Install Rust and Cargo through rustup with the `x86_64-pc-windows-msvc`
-  toolchain. `rust-toolchain.toml` selects Rust 1.93.0.
-- Install Microsoft Visual Studio Build Tools with **Desktop development with
-  C++**, the MSVC x64 build tools, and a Windows SDK. Verify installed components
-  through Visual Studio Installer or a component-aware `vswhere` query. Check
-  `cl` from a Visual Studio developer shell; absence from ordinary PowerShell's
-  PATH alone is not conclusive.
-- Verify Microsoft Edge WebView2 Runtime is available. It is normally present
-  on Windows 11, but the actual test machine and runtime version need checking.
+```sh
+pnpm install --frozen-lockfile
+pnpm tauri build --no-bundle
+```
 
-Use a separate native Windows checkout on the Windows filesystem, for example
-`C:\zathura`, and run the workflow in native PowerShell or a Visual Studio
-developer PowerShell. Do not use the WSL checkout as the native Windows build
-directory. Install dependencies separately in each environment; **never share
-`node_modules` between Windows and WSL**. Keep Rust build outputs separate too.
+The command runs the TypeScript typecheck and Vite production build before
+compiling the native release executable. Installer bundling is currently
+disabled, so `--no-bundle` intentionally creates only the application binary.
 
-### Ubuntu 24.04 x64 / WSL Development
+### Windows
 
-Frontend work needs Node.js and pnpm. Native Tauri development additionally needs
-Rust/Cargo, a native compiler, and Tauri's Linux system development libraries.
-The documented Debian/Ubuntu prerequisite set is:
+Supported and verified target: Windows 11 x64.
+
+Install:
+
+- Visual Studio Build Tools with **Desktop development with C++**, the MSVC x64
+  build tools, and a Windows SDK
+- Microsoft Edge WebView2 Runtime, which is normally included with Windows 11
+- Rust's `x86_64-pc-windows-msvc` toolchain
+
+Build from native PowerShell or a Visual Studio Developer PowerShell:
+
+```powershell
+pnpm install --frozen-lockfile
+pnpm tauri build --no-bundle
+```
+
+Output:
+
+```text
+src-tauri\target\release\local-pdf-reader.exe
+```
+
+Do not build from a checkout stored inside WSL and do not share `node_modules`
+between Windows and WSL. Keep a separate checkout on the Windows filesystem.
+The resulting executable is unsigned, so Windows SmartScreen may warn when it
+is first opened.
+
+To run the native Windows shell smoke test after building:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/windows-shell-smoke.ps1
+```
+
+### Linux
+
+Linux builds require Tauri's WebKitGTK and native development libraries. On
+Debian, Ubuntu, or WSL, install them with:
 
 ```sh
 sudo apt update
-sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev
+sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
+  libxdo-dev libssl-dev librsvg2-dev libayatana-appindicator3-dev
 ```
 
-Install Rust/Cargo through rustup separately. A native launch also needs a working
-graphical session (WSLg for WSL development). These installation steps have not
-been performed or validated by this README change. Missing Rust/Cargo currently
-blocks native checks and Cargo lockfile generation; the remaining native
-libraries and graphical environment are unverified.
+Then build:
+
+```sh
+pnpm install --frozen-lockfile
+pnpm tauri build --no-bundle
+```
+
+Output:
+
+```text
+src-tauri/target/release/local-pdf-reader
+```
+
+The executable still depends on compatible system runtime libraries, including
+WebKitGTK. Native Linux behavior and distribution compatibility have not yet
+been verified by this project. See the
+[official Tauri Linux prerequisites](https://v2.tauri.app/start/prerequisites/#linux)
+for packages used by other distributions.
 
 ### macOS
 
-Once a version and architecture are confirmed, plan for a native Mac with Node.js,
-pnpm, Rust/Cargo, and Xcode Command Line Tools. WKWebView comes from the OS.
-Signing/notarization is a separate release concern. Neither a Windows nor a WSL
-build validates macOS compatibility.
+Install Xcode Command Line Tools:
 
-See the official [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/)
-for platform setup details.
+```sh
+xcode-select --install
+```
 
-## Development Workflow
+Then build on the Mac architecture you want to target:
 
-Run these commands from the application checkout root. First set up the isolated,
-development-only Python fixture tools in [fixtures/README.md](fixtures/README.md)
-and set `FIXTURE_PYTHON`. The first four work in WSL and Windows; native commands
-require platform-specific prerequisites above.
+```sh
+pnpm install --frozen-lockfile
+pnpm tauri build --no-bundle
+```
+
+Output:
+
+```text
+src-tauri/target/release/local-pdf-reader
+```
+
+This produces an unsigned standalone Mach-O executable, not a `.app`, DMG, or
+notarized release. Native macOS behavior and minimum OS compatibility have not
+yet been verified by this project.
+
+## Development
+
+Install dependencies and run the checks:
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm typecheck
-pnpm test
 pnpm build
-pnpm tauri dev
-pnpm tauri build
 ```
 
-| Command | Intended Scope |
-| --- | --- |
-| `pnpm install --frozen-lockfile` | Install the locked JavaScript dependencies without updating the lockfile. Initial lockfile creation must happen first. |
-| `pnpm typecheck` | Check the TypeScript frontend. |
-| `pnpm test` | Run bootstrap, native boundary, fixture parser/regeneration, design-token/contrast, PDF asset and renderer lifecycle tests. |
-| `pnpm test:theme:windows` | Launch the Windows release executable to check actual WebView2 themes, token propagation and accessibility styles. No OS theme changes or global keyboard input. |
-| `pnpm test:pdf:windows` | Offline native Windows proof: real picker, PDF.js worker rendering, passwords, recovery and worker cleanup against the generated fixtures. Opens test windows; do not use the machine during the run. |
-| `pnpm build` | Build frontend production assets; this does not compile the native shell or produce a validated installer. |
-| `pnpm tauri dev` | Compile and launch the native development shell on the current OS, once its native prerequisites are met. |
-| `pnpm tauri build` | Build the native application on the current OS. Installer bundling is disabled at bootstrap and will be configured in later gates. |
+The complete test suite also validates deterministic PDF fixtures. Set up its
+development-only Python environment and `FIXTURE_PYTHON` as described in
+[`fixtures/README.md`](fixtures/README.md), then run:
 
-The checked-in `src-tauri/Cargo.lock` was generated and verified on Windows. Run:
+```sh
+pnpm test
+```
+
+Run the native development application after installing the prerequisites for
+your OS:
+
+```sh
+pnpm tauri dev
+```
+
+Run the Rust checks directly:
 
 ```sh
 cargo check --locked --manifest-path src-tauri/Cargo.toml
 cargo test --locked --manifest-path src-tauri/Cargo.toml
 ```
 
-For a release-mode Windows bootstrap smoke check, run:
-
-```powershell
-pnpm tauri build --no-bundle -- --locked
-powershell -NoProfile -ExecutionPolicy Bypass -File tests/windows-shell-smoke.ps1
-```
-
-The smoke test launches only the built app, checks its accessibility content,
-and closes it. Its accessibility flag and execution-policy override are local to
-the test process; it does not modify system policy or shipped WebView2 settings.
-
-Retain commit-ready pnpm and Cargo lockfiles and record exact selected dependency
-and toolchain versions. Do not describe unlocked resolution as a reproducible
-native check. Run native Windows checks independently of WSL checks. Later PDF.js
-acceptance must exercise offline packaged assets and workers in the actual target
-webviews, not just the frontend build or configuration smoke tests.
-
-## End-User Requirements
-
-There is no end-user release yet. For future packaged releases, users should not
-need Node.js, pnpm, Rust, Cargo, C++ Build Tools, or Xcode to read PDFs.
-
-- Windows will require a working WebView2 Runtime. Its installer detection or
-  provisioning strategy and clean-machine behavior remain to be validated.
-- Ubuntu packages will require compatible runtime libraries, including WebKitGTK;
-  exact package dependencies and clean-machine installation remain unverified.
-  Development headers and compiler packages are not intended end-user requirements.
-- macOS would use the system WKWebView, but no minimum OS version or supported
-  architecture is established yet.
-
-Native compilation, packaged offline behavior, installation/uninstallation,
-dependency notices, and platform acceptance remain release gates. Unsigned local
-development artifacts are not equivalent to signed public releases; Windows
-signing and macOS signing/notarization require separate user-controlled setup.
+Additional architecture, design, acceptance criteria, and verification details
+are available in [`docs/`](docs/).
