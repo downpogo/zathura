@@ -27,3 +27,13 @@ test('tracked text does not contain literal user home paths', async () => {
 
   assert.deepEqual(findings, [], `Replace personal paths with environment variables or neutral placeholders:\n${findings.join('\n')}`);
 });
+
+test('reachable commits use GitHub noreply email addresses', () => {
+  const emails = execFileSync('git', ['log', '--all', '--format=%ae%n%ce'], { cwd: root })
+    .toString('utf8')
+    .trim()
+    .split('\n');
+  const publicEmails = [...new Set(emails.filter(email => !email.endsWith('@users.noreply.github.com')))];
+
+  assert.deepEqual(publicEmails, [], 'Configure Git author and committer emails with a GitHub noreply address');
+});
