@@ -60,7 +60,7 @@ pub(crate) fn check_caller(label: &str, window: &str, url: &tauri::Url) -> Resul
     }
 }
 
-fn authorize(webview: &Webview) -> Result<(), FileError> {
+pub(crate) fn authorize(webview: &Webview) -> Result<(), FileError> {
     check_caller(
         webview.label(),
         webview.window().label(),

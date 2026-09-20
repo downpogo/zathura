@@ -49,6 +49,7 @@ On macOS, use `Cmd` instead of `Ctrl` for the global shortcuts marked
 | `Ctrl/Cmd+L` | List open documents |
 | `Ctrl/Cmd+R` | Toggle and remember light/dark theme |
 | `Ctrl/Cmd+N` | Toggle and remember the status bar |
+| `F11` | Toggle fullscreen |
 | `Tab` | Toggle the PDF outline sidebar |
 | `:` | Open command mode |
 | `Escape` | Clear a pending key sequence or close the active dialog |
@@ -146,23 +147,58 @@ Install:
 - Microsoft Edge WebView2 Runtime, which is normally included with Windows 11
 - Rust's `x86_64-pc-windows-msvc` toolchain
 
-Build from native PowerShell or a Visual Studio Developer PowerShell:
+For a repeatable release build, run the checked-in script from native
+PowerShell:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1
+```
+
+The default output is `%USERPROFILE%\Downloads\Zathura.exe`. The script:
+
+- stages the current worktree in a fresh directory on the native Windows
+  filesystem, so it also works when the repository is inside WSL;
+- requires the exact pnpm version from `package.json` and the Node.js range from
+  `package.json`;
+- installs JavaScript dependencies with `--frozen-lockfile` and compiles Rust
+  with `--locked` using the toolchain pinned in `rust-toolchain.toml`;
+- builds a release executable without an installer, runs the native shell smoke
+  test, gracefully closes an existing destination executable, and replaces it;
+- verifies the copied file by SHA-256 and prints its path, size, and hash.
+
+Use another destination or relaunch the application after replacement with:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1 `
+  -Destination "C:\path\to\Zathura.exe" -Launch
+```
+
+From WSL, invoke the same script through Windows PowerShell. It copies source
+files but never shares WSL `node_modules` or Rust build artifacts with Windows:
+
+```sh
+powershell.exe -NoProfile -ExecutionPolicy Bypass \
+  -File "$(wslpath -w scripts/build-windows.ps1)" -Launch
+```
+
+Pass `-SkipSmoke` only when the Windows UI automation smoke test cannot run.
+The resulting executable is unsigned, so Windows SmartScreen may warn when it
+is first opened. Locked inputs and a clean build make the procedure repeatable;
+they do not promise byte-for-byte reproducible PE files across different Windows
+SDK, MSVC, or operating-system versions.
+
+For a manual build from a native Windows checkout, run:
 
 ```powershell
 pnpm install --frozen-lockfile
-pnpm tauri build --no-bundle
+node node_modules/@tauri-apps/cli/tauri.js build --no-bundle -- --locked
 ```
 
-Output:
+Manual-build output:
 
 ```text
 src-tauri\target\release\local-pdf-reader.exe
 ```
-
-Do not build from a checkout stored inside WSL and do not share `node_modules`
-between Windows and WSL. Keep a separate checkout on the Windows filesystem.
-The resulting executable is unsigned, so Windows SmartScreen may warn when it
-is first opened.
 
 To run the native Windows shell smoke test after building:
 

@@ -1,3 +1,4 @@
+import { invoke } from '@tauri-apps/api/core';
 import { createReaderKeyboard, ReaderCommand } from './keyboard';
 import { DocumentSession, DocumentSessionError } from './document-session';
 import { OutlineTree } from './outline';
@@ -578,6 +579,16 @@ window.addEventListener('beforeunload', () => {
   flushPendingSaves();
 });
 document.addEventListener('keydown', event => {
+  if (event.key === 'F11' && !event.ctrlKey && !event.metaKey && !event.altKey
+      && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    if (!event.repeat) {
+      void invoke('toggle_fullscreen').catch(() => {
+        showStatusMessage('Could not toggle fullscreen.', 4000);
+      });
+    }
+    return;
+  }
   if (anyDialogOpen()) return;
   if ((event.ctrlKey !== event.metaKey) && !event.altKey && !event.shiftKey
       && !event.isComposing && event.key.toLowerCase() === 'o') {

@@ -2,6 +2,18 @@
 
 mod native_files;
 
+#[tauri::command]
+fn toggle_fullscreen(webview: tauri::Webview) -> Result<(), native_files::FileError> {
+    native_files::authorize(&webview)?;
+    let window = webview.window();
+    let fullscreen = window
+        .is_fullscreen()
+        .map_err(|_| native_files::FileError::Internal)?;
+    window
+        .set_fullscreen(!fullscreen)
+        .map_err(|_| native_files::FileError::Internal)
+}
+
 fn can_navigate(url: &tauri::Url) -> bool {
     native_files::check_caller("main", "main", url).is_ok()
         && matches!(url.path(), "/" | "/index.html")
@@ -44,6 +56,7 @@ fn main() {
         })
         .manage(native_files::NativeFiles::default())
         .invoke_handler(tauri::generate_handler![
+            toggle_fullscreen,
             native_files::select_pdf_files,
             native_files::read_pdf_file,
             native_files::release_pdf_file,
