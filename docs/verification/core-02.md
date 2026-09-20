@@ -62,7 +62,7 @@ recommended encryption and not comprehensive AES/permission coverage.
 
 ## Commands And Results
 
-Executed from `the repository root` on WSL2 Ubuntu 24.04.4 x86_64, Python
+Executed from the repository root on WSL2 Ubuntu 24.04.4 x86_64, Python
 3.12.3; project Node/pnpm environment from CORE-01. No webview is involved.
 
 ```sh
